@@ -93,3 +93,13 @@ variable "max_retrieval_results" {
   type        = string
   default     = "10"
 }
+
+variable "domain_name" {
+  description = "Domain name for the DNS zone"
+  type        = string
+}
+
+variable "api_subdomain" {
+  description = "API subdomain"
+  type        = string
+}

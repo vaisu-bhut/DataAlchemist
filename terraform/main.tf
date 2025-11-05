@@ -118,8 +118,34 @@ resource "google_cloud_run_service_iam_member" "public" {
   member   = "allUsers"
 }
 
+# Reference existing DNS Zone for datalchemist.clestiq.com
+data "google_dns_managed_zone" "main" {
+  name = "datalchemist"
+}
+
+# CNAME Record pointing directly to Cloud Run service
+resource "google_dns_record_set" "api_cname_record" {
+  name         = "${var.api_subdomain}.${var.domain_name}."
+  managed_zone = data.google_dns_managed_zone.main.name
+  type         = "CNAME"
+  ttl          = 300
+
+  # Extract hostname from Cloud Run URL and add trailing dot for DNS
+  rrdatas = ["${google_cloud_run_service.main.status[0].url}."]
+}
+
 # Output the service URL
 output "service_url" {
   description = "The URL of the deployed Cloud Run service"
   value       = google_cloud_run_service.main.status[0].url
+}
+
+output "api_domain" {
+  description = "The custom domain for the API"
+  value       = "https://${var.api_subdomain}.${var.domain_name}"
+}
+
+output "cloud_run_hostname" {
+  description = "The Cloud Run service hostname"
+  value       = replace(google_cloud_run_service.main.status[0].url, "https://", "")
 }
