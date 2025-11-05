@@ -34,12 +34,6 @@ jobs:
           cd terraform
           terraform validate
 
-      - name: Terraform Plan
-        run: |
-          cd terraform
-          terraform plan -no-color
-        continue-on-error: true
-
   build-check:
     runs-on: ubuntu-latest
     name: Build Validation
