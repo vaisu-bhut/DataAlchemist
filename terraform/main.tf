@@ -1,19 +1,3 @@
-terraform {
-  required_version = ">= 1.0"
-
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "google" {
-  project = var.project_id
-  region  = var.region
-}
-
 # Cloud Run service
 resource "google_cloud_run_service" "main" {
   name     = var.service_name
@@ -111,9 +95,11 @@ resource "google_cloud_run_service" "main" {
 
     metadata {
       annotations = {
-        "autoscaling.knative.dev/maxScale"  = "10"
-        "autoscaling.knative.dev/minScale"  = "1"
-        "run.googleapis.com/cpu-throttling" = "false"
+        # Scaling configuration
+        "autoscaling.knative.dev/maxScale"          = "10"
+        "autoscaling.knative.dev/minScale"          = "1"
+        "autoscaling.knative.dev/targetUtilization" = "70" # Scale up at 70% CPU
+        "run.googleapis.com/cpu-throttling"         = "false"
       }
     }
   }
