@@ -54,6 +54,16 @@ cover/
 # Translations
 *.mo
 *.pot
+.vscode/
+build/
+generated-messages/
+
+# Mr Developer
+.mr.developer.cfg
+.project
+.idea/
+.vscode/
+*.iml
 
 # Django stuff:
 *.log
