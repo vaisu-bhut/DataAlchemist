@@ -97,7 +97,7 @@ resource "google_cloud_run_service" "main" {
       annotations = {
         # Scaling configuration
         "autoscaling.knative.dev/maxScale"          = "10"
-        "autoscaling.knative.dev/minScale"          = "1"
+        "autoscaling.knative.dev/minScale"          = "0"
         "autoscaling.knative.dev/targetUtilization" = "70" # Scale up at 70% CPU
         "run.googleapis.com/cpu-throttling"         = "false"
       }
