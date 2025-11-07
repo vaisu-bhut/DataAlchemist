@@ -6,13 +6,11 @@ variable "project_id" {
 variable "region" {
   description = "The GCP region"
   type        = string
-  default     = "us-central1"
 }
 
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
-  default     = "dev"
 }
 
 variable "service_name" {
@@ -55,13 +53,11 @@ variable "gemini_api_key" {
 variable "gemini_model_name" {
   description = "Gemini model name"
   type        = string
-  default     = "gemini-pro"
 }
 
 variable "gemini_embedding_model" {
   description = "Gemini embedding model"
   type        = string
-  default     = "models/embedding-001"
 }
 
 variable "secret_key" {
@@ -73,33 +69,19 @@ variable "secret_key" {
 variable "chunk_size" {
   description = "Text chunk size"
   type        = string
-  default     = "1000"
 }
 
 variable "similarity_threshold" {
   description = "Similarity threshold"
   type        = string
-  default     = "0.7"
 }
 
 variable "confidence_threshold" {
   description = "Confidence threshold"
   type        = string
-  default     = "0.8"
 }
 
 variable "max_retrieval_results" {
   description = "Maximum retrieval results"
-  type        = string
-  default     = "10"
-}
-
-variable "domain_name" {
-  description = "Domain name for the DNS zone"
-  type        = string
-}
-
-variable "api_subdomain" {
-  description = "API subdomain"
   type        = string
 }
