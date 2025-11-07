@@ -11,17 +11,17 @@ export default function Hero() {
     <section className="relative min-h-screen flex items-center justify-center text-white px-4">
       <div className="max-w-6xl mx-auto text-center">
         <div className="flex items-center justify-center mb-6">
-          <Brain className="w-16 h-16 mr-4 text-blue-200" />
+          <Brain className="w-16 h-16 mr-4 text-white" />
           <h1 className="text-5xl md:text-7xl font-bold">
             DataAlchemist
           </h1>
         </div>
         
-        <h2 className="text-2xl md:text-4xl font-light mb-6 text-blue-100">
+        <h2 className="text-2xl md:text-4xl font-light mb-6 text-white">
           Transform Customer Conversations into Knowledge
         </h2>
         
-        <p className="text-xl md:text-2xl mb-8 text-blue-200 max-w-4xl mx-auto">
+        <p className="text-xl md:text-2xl mb-8 text-gray-100 max-w-4xl mx-auto">
           AI-powered knowledge engine that converts chat logs into searchable, intelligent responses
         </p>
         

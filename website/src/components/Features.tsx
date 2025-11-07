@@ -41,7 +41,7 @@ export default function Features() {
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
             Why DataAlchemist?
           </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+          <p className="text-xl text-gray-700 max-w-3xl mx-auto">
             Turn your historical customer conversations into a powerful AI knowledge base that learns and improves over time.
           </p>
         </div>
@@ -58,7 +58,7 @@ export default function Features() {
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
                 {feature.title}
               </h3>
-              <p className="text-gray-600 leading-relaxed">
+              <p className="text-gray-700 leading-relaxed">
                 {feature.description}
               </p>
             </div>

@@ -71,7 +71,7 @@ export default function Demo() {
               className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                 activeTab === 'ingest'
                   ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
               }`}
             >
               Ingest Data
@@ -81,7 +81,7 @@ export default function Demo() {
               className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                 activeTab === 'chat'
                   ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
               }`}
             >
               Chat Query
@@ -93,7 +93,7 @@ export default function Demo() {
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">
                 Sample Ingest Request
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-700 mb-6">
                 Upload conversation data to build your knowledge base:
               </p>
               <div className="relative">
@@ -104,7 +104,7 @@ export default function Demo() {
                   {copied === 'ingest' ? (
                     <Check className="w-4 h-4 text-green-600" />
                   ) : (
-                    <Copy className="w-4 h-4 text-gray-600" />
+                    <Copy className="w-4 h-4 text-gray-800" />
                   )}
                 </button>
                 <pre className="bg-gray-900 text-green-400 p-6 rounded-xl overflow-x-auto text-sm">
@@ -119,7 +119,7 @@ export default function Demo() {
               <h3 className="text-2xl font-semibold text-gray-900 mb-4">
                 Sample Chat Query
               </h3>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-700 mb-6">
                 Ask questions and get intelligent responses:
               </p>
               <div className="space-y-6">
@@ -132,7 +132,7 @@ export default function Demo() {
                     {copied === 'chat-request' ? (
                       <Check className="w-4 h-4 text-green-600" />
                     ) : (
-                      <Copy className="w-4 h-4 text-gray-600" />
+                      <Copy className="w-4 h-4 text-gray-800" />
                     )}
                   </button>
                   <pre className="bg-gray-900 text-green-400 p-6 rounded-xl overflow-x-auto text-sm">
@@ -149,7 +149,7 @@ export default function Demo() {
                     {copied === 'chat-response' ? (
                       <Check className="w-4 h-4 text-green-600" />
                     ) : (
-                      <Copy className="w-4 h-4 text-gray-600" />
+                      <Copy className="w-4 h-4 text-gray-800" />
                     )}
                   </button>
                   <pre className="bg-gray-900 text-blue-400 p-6 rounded-xl overflow-x-auto text-sm">

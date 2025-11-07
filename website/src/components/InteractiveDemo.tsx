@@ -51,7 +51,7 @@ export default function InteractiveDemo() {
           <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
             Live API Demo
           </h2>
-          <p className="text-xl text-gray-600">
+          <p className="text-xl text-gray-700">
             Test the actual API endpoints with real data
           </p>
         </div>
@@ -62,7 +62,7 @@ export default function InteractiveDemo() {
             <h3 className="text-xl font-semibold text-gray-900 mb-4">
               Step 1: Ingest Sample Data
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-black mb-4">
               First, let's upload some sample conversation data to the knowledge base.
             </p>
             <button
@@ -84,13 +84,13 @@ export default function InteractiveDemo() {
             <h3 className="text-xl font-semibold text-gray-900 mb-4">
               Step 2: Ask a Question
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-black mb-4">
               Now ask a question and get an AI-powered response based on the ingested data.
             </p>
             
             <div className="space-y-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Customer Query
                 </label>
                 <input
@@ -103,7 +103,7 @@ export default function InteractiveDemo() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-black mb-2">
                   Customer ID
                 </label>
                 <input
@@ -161,8 +161,8 @@ export default function InteractiveDemo() {
                     <h4 className="font-semibold text-gray-900 mb-2">Confidence:</h4>
                     <div className="bg-white p-3 rounded-xl border">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm text-gray-600">Confidence Score</span>
-                        <span className="font-medium">{(response.confidence * 100).toFixed(1)}%</span>
+                        <span className="text-sm text-gray-900">Confidence Score</span>
+                        <span className="font-medium text-gray-900">{(response.confidence * 100).toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
@@ -178,8 +178,8 @@ export default function InteractiveDemo() {
                     <div className="bg-white p-3 rounded-xl border">
                       {response.sources.map((source, index) => (
                         <div key={index} className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">{source.conversation_id}</span>
-                          <span className="text-sm font-medium">{(source.similarity * 100).toFixed(1)}%</span>
+                          <span className="text-sm text-gray-900">{source.conversation_id}</span>
+                          <span className="text-sm font-medium text-gray-900">{(source.similarity * 100).toFixed(1)}%</span>
                         </div>
                       ))}
                     </div>

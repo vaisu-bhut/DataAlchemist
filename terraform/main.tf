@@ -72,13 +72,13 @@ resource "google_cloud_run_service" "main" {
 
         startup_probe {
           http_get {
-            path = "/health"
+            path = "/"
             port = 8000
           }
-          initial_delay_seconds = 30
-          timeout_seconds       = 10
-          period_seconds        = 10
-          failure_threshold     = 3
+          initial_delay_seconds = 5
+          timeout_seconds       = 3
+          period_seconds        = 3
+          failure_threshold     = 10
         }
 
         liveness_probe {
@@ -86,7 +86,7 @@ resource "google_cloud_run_service" "main" {
             path = "/health"
             port = 8000
           }
-          initial_delay_seconds = 30
+          initial_delay_seconds = 60
           timeout_seconds       = 5
           period_seconds        = 30
         }
