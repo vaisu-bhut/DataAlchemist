@@ -33,6 +33,9 @@ neo4j_conn = None
 ingestion_service = None
 polling_task = None
 
+# Log configuration on startup
+logger.info("Ingest Agent Configuration", pubsub_url=PUBSUB_URL)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

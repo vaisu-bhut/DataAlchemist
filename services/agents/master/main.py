@@ -35,8 +35,10 @@ class ChatRequest(BaseModel):
 async def lifespan(app: FastAPI):
     global master_agent
     # Startup
-    logger.info("Starting Master Agent with LangGraph")
-    master_agent = MasterAgent()
+    import os
+    pubsub_url = os.getenv("PUBSUB_URL", "http://pubsub:8001")
+    logger.info("Starting Master Agent with LangGraph", pubsub_url=pubsub_url)
+    master_agent = MasterAgent(pubsub_url=pubsub_url)
     
     yield
     
