@@ -11,7 +11,7 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: us-central1
+  REGION: us-east1
   REPO_NAME: agentic-system
 
 jobs:
@@ -39,16 +39,22 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
       
-      - name: Create Artifact Registry repository
+      - name: Verify Artifact Registry repository
         run: |
-          gcloud artifacts repositories describe ${{ env.REPO_NAME }} \
+          # Check if repository exists, if not it will be created by Terraform
+          if gcloud artifacts repositories describe ${{ env.REPO_NAME }} \
             --location=${{ env.REGION }} \
-            --project=${{ env.PROJECT_ID }} 2>/dev/null || \
-          gcloud artifacts repositories create ${{ env.REPO_NAME }} \
-            --repository-format=docker \
-            --location=${{ env.REGION }} \
-            --description="Agentic workflow system containers" \
-            --project=${{ env.PROJECT_ID }}
+            --project=${{ env.PROJECT_ID }} 2>/dev/null; then
+            echo "✅ Artifact Registry repository exists"
+          else
+            echo "⚠️  Repository doesn't exist yet - Terraform will create it"
+            echo "Attempting to create repository..."
+            gcloud artifacts repositories create ${{ env.REPO_NAME }} \
+              --repository-format=docker \
+              --location=${{ env.REGION }} \
+              --description="Agentic workflow system containers" \
+              --project=${{ env.PROJECT_ID }} || echo "Repository will be created by Terraform"
+          fi
       
       - name: Build and Push Pub/Sub Service
         working-directory: ./services
