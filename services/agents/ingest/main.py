@@ -13,18 +13,41 @@ import sys
 sys.path.insert(0, '/app')
 sys.path.insert(0, '/app/agents/ingest')
 
-# Load JSON secrets if they exist
-try:
-    from agents.shared.load_secrets import *
-except:
-    pass
+# Load JSON secrets BEFORE importing config
+import json
+db_creds_json = os.getenv("DATABASE_CREDENTIALS")
+if db_creds_json:
+    try:
+        db_creds = json.loads(db_creds_json)
+        # Use lowercase to match pydantic Settings field names
+        os.environ["neo4j_uri"] = db_creds.get("neo4j_uri", "")
+        os.environ["neo4j_user"] = db_creds.get("neo4j_user", "neo4j")
+        os.environ["neo4j_password"] = db_creds.get("neo4j_password", "")
+    except: pass
+
+api_keys_json = os.getenv("API_KEYS")
+if api_keys_json:
+    try:
+        api_keys = json.loads(api_keys_json)
+        # Use lowercase to match pydantic Settings field names
+        os.environ["gemini_api_key"] = api_keys.get("gemini_api_key", "")
+        os.environ["gemini_model_name"] = api_keys.get("gemini_model_name", "gemini-2.5-pro")
+        os.environ["gemini_embedding_model"] = api_keys.get("gemini_embedding_model", "models/text-embedding-004")
+        os.environ["secret_key"] = api_keys.get("app_secret_key", "")
+    except: pass
+
+# Set defaults (lowercase to match pydantic Settings)
+os.environ.setdefault("chunk_size", "2000")
+os.environ.setdefault("similarity_threshold", "0.85")
+os.environ.setdefault("confidence_threshold", "0.7")
+os.environ.setdefault("max_retrieval_results", "10")
 
 logger = structlog.get_logger()
 
 # Get PUBSUB_URL from environment or use default
 PUBSUB_URL = os.getenv("PUBSUB_URL", "http://pubsub:8001")
 
-# Import after path is set
+# Import after secrets are loaded
 from core.database import Neo4jConnection
 from services.ingestion_service import IngestionService
 from models.schemas import ConversationData
