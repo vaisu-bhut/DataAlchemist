@@ -32,6 +32,9 @@ neo4j_conn = None
 retrieval_service = None
 polling_task = None
 
+# Log configuration on startup
+logger.info("Chat Agent Configuration", pubsub_url=PUBSUB_URL)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
