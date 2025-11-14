@@ -1,0 +1,167 @@
+"""
+Simple Ingest Agent - Processes conversations and stores in Neo4j
+"""
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+import httpx
+import asyncio
+import structlog
+import os
+import sys
+
+# Add parent directory to path
+sys.path.insert(0, '/app')
+
+logger = structlog.get_logger()
+
+PUBSUB_URL = "http://pubsub:8001"
+
+# Import after path is set
+from core.database import Neo4jConnection
+from services.ingestion_service import IngestionService
+from models.schemas import ConversationData
+
+neo4j_conn = None
+ingestion_service = None
+polling_task = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global neo4j_conn, ingestion_service, polling_task
+    
+    # Startup
+    logger.info("Starting Ingest Agent")
+    
+    # Connect to Neo4j
+    neo4j_conn = Neo4jConnection()
+    await neo4j_conn.connect()
+    await neo4j_conn.initialize_schema()
+    
+    # Initialize ingestion service
+    ingestion_service = IngestionService(neo4j_conn)
+    
+    # Start polling for messages
+    polling_task = asyncio.create_task(poll_for_requests())
+    
+    logger.info("Ingest agent ready")
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down Ingest Agent")
+    if polling_task:
+        polling_task.cancel()
+    if neo4j_conn:
+        await neo4j_conn.close()
+
+
+app = FastAPI(title="Simple Ingest Agent", version="1.0.0", lifespan=lifespan)
+
+
+async def poll_for_requests():
+    """Poll pub/sub for ingest requests"""
+    logger.info("Starting to poll for ingest requests")
+    
+    async with httpx.AsyncClient() as client:
+        while True:
+            try:
+                # Poll for messages
+                response = await client.get(
+                    f"{PUBSUB_URL}/poll/ingest.request",
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    message = data.get("message")
+                    
+                    if message:
+                        logger.info("Received ingest request", 
+                                   correlation_id=message.get("correlation_id"))
+                        await process_request(message)
+                
+                await asyncio.sleep(0.1)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error("Polling error", error=str(e))
+                await asyncio.sleep(1)
+
+
+async def process_request(message: dict):
+    """Process an ingest request"""
+    correlation_id = message.get("correlation_id")
+    conversations_data = message.get("conversations", [])
+    
+    try:
+        # Convert to ConversationData objects
+        conversations = [
+            ConversationData(**conv) 
+            for conv in conversations_data
+        ]
+        
+        # Process through ingestion service
+        result = await ingestion_service.process_conversations(conversations)
+        
+        # Publish response
+        response_message = {
+            "correlation_id": correlation_id,
+            "success": result.success,
+            "processed_count": result.processed_count,
+            "failed_count": result.failed_count,
+            "errors": result.errors
+        }
+        
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{PUBSUB_URL}/publish",
+                json={"topic": "ingest.response", "message": response_message},
+                timeout=5.0
+            )
+        
+        logger.info("Ingest completed", 
+                   correlation_id=correlation_id,
+                   processed=result.processed_count)
+        
+    except Exception as e:
+        logger.error("Processing failed", 
+                    correlation_id=correlation_id,
+                    error=str(e))
+        
+        # Publish error response
+        error_message = {
+            "correlation_id": correlation_id,
+            "success": False,
+            "processed_count": 0,
+            "failed_count": len(conversations_data),
+            "errors": [str(e)]
+        }
+        
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{PUBSUB_URL}/publish",
+                json={"topic": "ingest.response", "message": error_message},
+                timeout=5.0
+            )
+
+
+@app.get("/health")
+async def health():
+    db_healthy = await neo4j_conn.health_check() if neo4j_conn else False
+    return {
+        "status": "healthy" if db_healthy else "degraded",
+        "service": "ingest-agent",
+        "database_connected": db_healthy
+    }
+
+
+@app.get("/")
+async def root():
+    return {"message": "Simple Ingest Agent", "status": "running"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8002)
