@@ -166,12 +166,20 @@ async def process_request(message: dict):
             "errors": result.errors
         }
         
+        logger.info("📤 Publishing response to pubsub", 
+                   correlation_id=correlation_id,
+                   topic="ingest.response",
+                   message=response_message)
+        
         async with httpx.AsyncClient() as client:
-            await client.post(
+            publish_response = await client.post(
                 f"{PUBSUB_URL}/publish",
                 json={"topic": "ingest.response", "message": response_message},
                 timeout=5.0
             )
+            logger.info("✅ Response published successfully", 
+                       correlation_id=correlation_id,
+                       status_code=publish_response.status_code)
         
         logger.info("Ingest completed", 
                    correlation_id=correlation_id,
