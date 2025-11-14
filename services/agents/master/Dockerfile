@@ -5,13 +5,12 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
 
-# Copy and install requirements from root
-COPY requirements.txt .
+# Copy and install requirements
+COPY agents/master/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy shared code
 COPY agents/shared /app/agents/shared
-COPY models /app/models
 
 # Copy agent code
 COPY agents/master /app/agents/master
