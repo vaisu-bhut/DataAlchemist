@@ -1,6 +1,13 @@
 """
 Master Agent API with LangGraph
 """
+import sys
+import os
+
+# Add parent directories to path
+sys.path.insert(0, '/app')
+sys.path.insert(0, '/app/agents/master')
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager

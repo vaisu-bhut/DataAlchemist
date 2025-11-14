@@ -8,12 +8,21 @@ import asyncio
 import structlog
 import sys
 
-# Add parent directory to path
+# Add parent directories to path
 sys.path.insert(0, '/app')
+sys.path.insert(0, '/app/agents/chat')
+
+# Load JSON secrets if they exist
+try:
+    from agents.shared.load_secrets import *
+except:
+    pass
 
 logger = structlog.get_logger()
 
-PUBSUB_URL = "http://pubsub:8001"
+# Get PUBSUB_URL from environment or use default
+import os
+PUBSUB_URL = os.getenv("PUBSUB_URL", "http://pubsub:8001")
 
 # Import after path is set
 from core.database import Neo4jConnection
@@ -31,9 +40,23 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Chat Agent")
     
-    # Connect to Neo4j
+    # Wait a bit for other services to be ready
+    await asyncio.sleep(2)
+    
+    # Connect to Neo4j with retries
     neo4j_conn = Neo4jConnection()
-    await neo4j_conn.connect()
+    for attempt in range(3):
+        try:
+            await neo4j_conn.connect()
+            logger.info("Connected to Neo4j")
+            break
+        except Exception as e:
+            logger.warning(f"Neo4j connection attempt {attempt + 1} failed: {e}")
+            if attempt < 2:
+                await asyncio.sleep(2)
+            else:
+                logger.error("Failed to connect to Neo4j after 3 attempts")
+                raise
     
     # Initialize retrieval service
     retrieval_service = RetrievalService(neo4j_conn)

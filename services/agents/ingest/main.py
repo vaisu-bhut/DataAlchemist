@@ -9,12 +9,20 @@ import structlog
 import os
 import sys
 
-# Add parent directory to path
+# Add parent directories to path
 sys.path.insert(0, '/app')
+sys.path.insert(0, '/app/agents/ingest')
+
+# Load JSON secrets if they exist
+try:
+    from agents.shared.load_secrets import *
+except:
+    pass
 
 logger = structlog.get_logger()
 
-PUBSUB_URL = "http://pubsub:8001"
+# Get PUBSUB_URL from environment or use default
+PUBSUB_URL = os.getenv("PUBSUB_URL", "http://pubsub:8001")
 
 # Import after path is set
 from core.database import Neo4jConnection
@@ -33,10 +41,24 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Ingest Agent")
     
-    # Connect to Neo4j
+    # Wait a bit for other services to be ready
+    await asyncio.sleep(2)
+    
+    # Connect to Neo4j with retries
     neo4j_conn = Neo4jConnection()
-    await neo4j_conn.connect()
-    await neo4j_conn.initialize_schema()
+    for attempt in range(3):
+        try:
+            await neo4j_conn.connect()
+            await neo4j_conn.initialize_schema()
+            logger.info("Connected to Neo4j and initialized schema")
+            break
+        except Exception as e:
+            logger.warning(f"Neo4j connection attempt {attempt + 1} failed: {e}")
+            if attempt < 2:
+                await asyncio.sleep(2)
+            else:
+                logger.error("Failed to connect to Neo4j after 3 attempts")
+                raise
     
     # Initialize ingestion service
     ingestion_service = IngestionService(neo4j_conn)
