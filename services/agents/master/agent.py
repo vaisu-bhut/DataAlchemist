@@ -78,9 +78,9 @@ class MasterAgent:
         
         logger.info("Waiting for response", correlation_id=correlation_id)
         
-        # Poll for response with timeout
+        # Poll for response with timeout (increased for LLM processing)
         start_time = asyncio.get_event_loop().time()
-        timeout = 60.0
+        timeout = 300.0  # 3 minutes for LLM processing
         
         async with httpx.AsyncClient() as client:
             while (asyncio.get_event_loop().time() - start_time) < timeout:
@@ -94,11 +94,17 @@ class MasterAgent:
                         data = response.json()
                         message = data.get("message")
                         
-                        if message and message.get("correlation_id") == correlation_id:
-                            state["result"] = message
-                            state["status"] = "completed"
-                            logger.info("Response received", correlation_id=correlation_id)
-                            return state
+                        if message:
+                            msg_corr_id = message.get("correlation_id")
+                            if msg_corr_id == correlation_id:
+                                state["result"] = message
+                                state["status"] = "completed"
+                                logger.info("Response received", correlation_id=correlation_id)
+                                return state
+                            else:
+                                logger.debug("Message for different correlation_id", 
+                                           expected=correlation_id, 
+                                           received=msg_corr_id)
                     
                     await asyncio.sleep(0.5)
                     
