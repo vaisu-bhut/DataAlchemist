@@ -96,15 +96,21 @@ class MasterAgent:
                         
                         if message:
                             msg_corr_id = message.get("correlation_id")
+                            logger.info("Received message from pubsub", 
+                                       expected_correlation_id=correlation_id,
+                                       received_correlation_id=msg_corr_id,
+                                       message_keys=list(message.keys()))
                             if msg_corr_id == correlation_id:
                                 state["result"] = message
                                 state["status"] = "completed"
-                                logger.info("Response received", correlation_id=correlation_id)
+                                logger.info("✅ Response matched!", correlation_id=correlation_id)
                                 return state
                             else:
-                                logger.debug("Message for different correlation_id", 
+                                logger.warning("❌ Correlation ID mismatch - discarding message", 
                                            expected=correlation_id, 
                                            received=msg_corr_id)
+                        else:
+                            logger.debug("No message in poll response")
                     
                     await asyncio.sleep(0.5)
                     
