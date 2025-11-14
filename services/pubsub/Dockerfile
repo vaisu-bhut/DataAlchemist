@@ -2,12 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements and install
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install minimal dependencies for pubsub
+RUN pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn==0.24.0 \
+    structlog==23.2.0
 
 # Copy service code
-COPY . .
+COPY pubsub/main.py .
 
 EXPOSE 8001
 

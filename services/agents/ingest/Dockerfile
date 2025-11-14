@@ -5,12 +5,20 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install
+# Copy and install requirements from root
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all agent code (self-contained)
-COPY . .
+# Copy shared code
+COPY agents/shared /app/agents/shared
+COPY models /app/models
+COPY core /app/core
+COPY services /app/services
+
+# Copy agent code
+COPY agents/ingest /app/agents/ingest
+
+WORKDIR /app/agents/ingest
 
 EXPOSE 8002
 
