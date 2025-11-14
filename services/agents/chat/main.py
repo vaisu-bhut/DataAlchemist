@@ -46,23 +46,27 @@ async def lifespan(app: FastAPI):
     # Wait a bit for other services to be ready
     await asyncio.sleep(2)
     
-    # Connect to Neo4j with retries
+    # Connect to Neo4j with retries (but don't fail startup)
     neo4j_conn = Neo4jConnection()
     for attempt in range(3):
         try:
             await neo4j_conn.connect()
-            logger.info("Connected to Neo4j")
+            logger.info("✅ Connected to Neo4j")
             break
         except Exception as e:
-            logger.warning(f"Neo4j connection attempt {attempt + 1} failed: {e}")
+            logger.warning(f"⚠️  Neo4j connection attempt {attempt + 1} failed: {e}")
             if attempt < 2:
-                await asyncio.sleep(2)
+                await asyncio.sleep(3)
             else:
-                logger.error("Failed to connect to Neo4j after 3 attempts")
-                raise
+                logger.error("❌ Failed to connect to Neo4j after 3 attempts - service will start but may not process requests")
+                # Don't raise - let service start anyway
+                neo4j_conn = None
     
-    # Initialize retrieval service
-    retrieval_service = RetrievalService(neo4j_conn)
+    # Initialize retrieval service (only if Neo4j connected)
+    if neo4j_conn:
+        retrieval_service = RetrievalService(neo4j_conn)
+    else:
+        logger.warning("⚠️  Retrieval service not initialized - Neo4j connection failed")
     
     # Start polling for messages
     polling_task = asyncio.create_task(poll_for_requests())
@@ -169,11 +173,18 @@ async def process_request(message: dict):
 
 @app.get("/health")
 async def health():
-    db_healthy = await neo4j_conn.health_check() if neo4j_conn else False
+    db_healthy = False
+    if neo4j_conn:
+        try:
+            db_healthy = await neo4j_conn.health_check()
+        except:
+            db_healthy = False
+    
     return {
         "status": "healthy" if db_healthy else "degraded",
         "service": "chat-agent",
-        "database_connected": db_healthy
+        "database_connected": db_healthy,
+        "message": "Service running" if not db_healthy else "All systems operational"
     }
 
 
