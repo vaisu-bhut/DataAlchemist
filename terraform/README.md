@@ -1,230 +1,226 @@
-# Terraform Deployment Guide
+# Agentic Workflow - Terraform Deployment
 
-This directory contains Terraform configuration to deploy the Knowledge Engine API to Google Cloud Run.
+Deploy the complete multi-agent system to Google Cloud Run.
 
-## What Gets Deployed
+## 📁 File Structure
 
-- **Artifact Registry**: Docker repository for container images
-- **Cloud Run**: Serverless container deployment with auto-scaling
-- **IAM**: Service accounts and permissions for GitHub Actions CI/CD
-
-Environment variables (including secrets) are passed directly from your `terraform.tfvars` file to Cloud Run.
-
-## Prerequisites
-
-1. **GCP Account**: Active project with billing enabled
-2. **Neo4j Database**: Neo4j Aura instance or hosted Neo4j
-   - Get free tier at [neo4j.com/cloud/aura](https://neo4j.com/cloud/aura)
-   - Note your connection URI (e.g., `bolt://xxxxx.databases.neo4j.io:7687`)
-3. **Gemini API Key**: From [Google AI Studio](https://aistudio.google.com/app/apikey)
-4. **Tools Installed**:
-   - Terraform >= 1.0
-   - gcloud CLI
-   - Docker
-
-## Quick Start
-
-### 1. Enable GCP APIs
-
-```bash
-gcloud services enable run.googleapis.com
-gcloud services enable artifactregistry.googleapis.com
+```
+terraform/
+├── main.tf                 # Main entry point & Terraform config
+├── provider.tf             # GCP provider configuration
+├── variables.tf            # Input variables
+├── outputs.tf              # Output values
+├── apis.tf                 # Enable GCP APIs
+├── artifact_registry.tf    # Container registry
+├── secrets.tf              # Secret Manager secrets
+├── pubsub_service.tf       # Pub/Sub message routing
+├── master_agent.tf         # Master orchestrator
+├── ingest_agent.tf         # Data processing worker
+├── chat_agent.tf           # Conversational worker
+└── terraform.tfvars        # Your configuration (create from example)
 ```
 
-### 2. Build and Push Docker Image
+## 🚀 Quick Start
 
+### 1. Prerequisites & Setup
 ```bash
-# From project root
-cd services
+# Set your project ID
+export PROJECT_ID=your-project-id
 
-# Build
-docker build -t knowledge-engine:latest .
+# Run setup script (enables APIs, creates service accounts)
+chmod +x setup.sh
+./setup.sh
 
-# Tag for your project (replace YOUR_PROJECT_ID)
-docker tag knowledge-engine:latest \
-  us-central1-docker.pkg.dev/YOUR_PROJECT_ID/dataalchemist/knowledge-engine:latest
+# Or on Windows:
+# set PROJECT_ID=your-project-id
+# setup.bat
 
-# Configure Docker auth
-gcloud auth configure-docker us-central1-docker.pkg.dev
-
-# Push
-docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/dataalchemist/knowledge-engine:latest
+# Authenticate
+gcloud auth login
+gcloud auth application-default login
 ```
 
-### 3. Configure Variables
+**What the setup script does:**
+- Enables Cloud Run, Secret Manager, Artifact Registry, Compute APIs
+- Creates default compute service account
+- Verifies setup
 
+**Manual setup:** See `SETUP.md` for detailed instructions
+
+### 2. Configure
 ```bash
 cd terraform
+
+# Copy example
 cp terraform.tfvars.example terraform.tfvars
+
+# Edit with your values
+nano terraform.tfvars
 ```
 
-Edit `terraform.tfvars` with your values:
+**Required values:**
+- `project_id` - Your GCP project ID
+- `neo4j_uri` - Neo4j connection string
+- `neo4j_password` - Neo4j password
+- `gemini_api_key` - Gemini API key
+- `secret_key` - Application secret (random string)
 
-```hcl
-project_id = "your-gcp-project-id"
-region     = "us-central1"
-
-github_owner = "your-github-username"
-github_repo  = "your-repo-name"
-
-neo4j_uri      = "bolt://xxxxx.databases.neo4j.io:7687"
-neo4j_user     = "neo4j"
-neo4j_password = "your-neo4j-password"
-
-gemini_api_key = "your-gemini-api-key"
-app_secret_key = "generate-a-random-secret-key"
-```
-
-### 4. Deploy
-
+### 3. Deploy
 ```bash
+# Initialize
 terraform init
+
+# Preview
 terraform plan
+
+# Deploy
 terraform apply
 ```
 
 Type `yes` when prompted.
 
-### 5. Get Your API URL
-
+### 4. Get URLs
 ```bash
-terraform output cloud_run_url
+terraform output
 ```
 
-This outputs your public Cloud Run URL, e.g.:
-```
-https://knowledge-engine-api-xxxxx-uc.a.run.app
-```
-
-## Testing the Deployment
-
+### 5. Test
 ```bash
-# Store the URL
-export API_URL=$(terraform output -raw cloud_run_url)
-
-# Health check
-curl $API_URL/health
-
-# API docs
-echo "Swagger UI: $API_URL/docs"
+MASTER_URL=$(terraform output -raw master_url)
+curl $MASTER_URL/health
 ```
 
-## Configuration
+## 🔄 CI/CD Workflow
 
-### Variables
+### GitHub Actions automatically:
+1. **Builds** all 4 container images
+2. **Pushes** to Artifact Registry
+3. **Deploys** with Terraform
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `project_id` | GCP project ID | Yes | - |
-| `region` | GCP region | No | `us-central1` |
-| `neo4j_uri` | Neo4j connection URI | Yes | - |
-| `neo4j_user` | Neo4j username | No | `neo4j` |
-| `neo4j_password` | Neo4j password | Yes | - |
-| `gemini_api_key` | Gemini API key | Yes | - |
-| `app_secret_key` | App encryption key | Yes | - |
-| `similarity_threshold` | Similarity matching threshold | No | `0.85` |
-| `confidence_threshold` | Response confidence threshold | No | `0.7` |
-| `max_retrieval_results` | Max search results | No | `10` |
+### Setup:
+1. Add GitHub secrets (see `.github/workflows/deploy-agents.yml`)
+2. Push to main branch
+3. Automatic deployment!
 
-### Outputs
+## 📦 What Gets Deployed
 
-| Output | Description |
-|--------|-------------|
-| `cloud_run_url` | Public URL endpoint for the API |
-| `service_name` | Cloud Run service name |
-| `artifact_registry_repository` | Docker repository URL |
+### Services (4)
+- **Pub/Sub** (Port 8001) - Message routing
+- **Master Agent** (Port 8000) - API gateway
+- **Ingest Agent** (Port 8002) - Data processing
+- **Chat Agent** (Port 8003) - Conversational
 
-## Cloud Run Configuration
+### Infrastructure
+- Artifact Registry repository
+- Secret Manager secrets (5)
+- IAM permissions
+- Auto-scaling configuration
 
-The service is configured with:
-- **CPU**: 2 vCPU
-- **Memory**: 2 GiB
-- **Scaling**: 0 to 10 instances (scales to zero when idle)
-- **Ingress**: All traffic allowed
-- **Authentication**: Public (unauthenticated)
+## 🔧 Customization
 
-To modify these settings, edit the `google_cloud_run_v2_service` resource in `main.tf`.
+### Scale a service
+Edit the service file (e.g., `chat_agent.tf`):
+```hcl
+metadata {
+  annotations = {
+    "autoscaling.knative.dev/maxScale" = "50"  # Increase
+    "autoscaling.knative.dev/minScale" = "2"   # Keep warm
+  }
+}
+```
 
-## Security
+Then apply:
+```bash
+terraform apply
+```
 
-Sensitive values (Neo4j password, Gemini API key, app secret key) are:
-- Stored in your local `terraform.tfvars` file (gitignored)
-- Stored in GitHub Secrets for CI/CD
-- Passed as environment variables to Cloud Run at deployment time
+### Adjust resources
+```hcl
+resources {
+  limits = {
+    cpu    = "2000m"  # 2 CPUs
+    memory = "4Gi"    # 4GB RAM
+  }
+}
+```
 
-**Important**: Never commit `terraform.tfvars` to version control. It's already in `.gitignore`.
-
-## Cost Optimization
-
-Cloud Run pricing is based on:
-- Request count
-- CPU/memory usage during request processing
-- Idle time (minimal cost)
-
-With `min_instance_count = 0`, the service scales to zero when not in use, minimizing costs.
-
-## Updating the Deployment
-
-After making changes to your application:
-
-1. **Rebuild and push the Docker image**:
-   ```bash
-   cd services
-   docker build -t knowledge-engine:latest .
-   docker tag knowledge-engine:latest \
-     us-central1-docker.pkg.dev/YOUR_PROJECT_ID/dataalchemist/knowledge-engine:latest
-   docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/dataalchemist/knowledge-engine:latest
-   ```
-
-2. **Redeploy** (if Terraform config changed):
-   ```bash
-   cd terraform
-   terraform apply
-   ```
-
-3. **Or force new revision** (if only code changed):
-   ```bash
-   gcloud run services update knowledge-engine-api \
-     --region us-central1 \
-     --image us-central1-docker.pkg.dev/YOUR_PROJECT_ID/dataalchemist/knowledge-engine:latest
-   ```
-
-## Cleanup
-
-To destroy all resources:
+## 🗑️ Destroy
 
 ```bash
 terraform destroy
 ```
 
-Type `yes` when prompted. This will delete:
-- Cloud Run service
-- Secrets in Secret Manager
-- Artifact Registry repository
-- Service accounts
+This removes all Cloud Run services and secrets.
 
-**Note**: This does NOT delete your Neo4j database.
+## 📊 Monitoring
 
-## Troubleshooting
+### View logs
+```bash
+gcloud run services logs read master-agent --region=us-central1
+gcloud run services logs read ingest-agent --region=us-central1
+gcloud run services logs read chat-agent --region=us-central1
+gcloud run services logs read pubsub --region=us-central1
+```
 
-**Cloud Run service fails to start**:
-- Check logs: `gcloud run services logs read knowledge-engine-api --region us-central1`
-- Verify Neo4j connection URI is correct
-- Ensure all required variables are set in `terraform.tfvars`
+### Cloud Console
+```
+https://console.cloud.google.com/run?project=YOUR_PROJECT_ID
+```
 
-**Cannot push Docker image**:
-- Authenticate: `gcloud auth configure-docker us-central1-docker.pkg.dev`
-- Verify Artifact Registry exists: `gcloud artifacts repositories list`
+## 🔍 Troubleshooting
 
-**Terraform apply fails**:
-- Ensure all required APIs are enabled
-- Check IAM permissions for your user account
-- Verify `terraform.tfvars` has all required values
+### Service not starting
+```bash
+# Check logs
+gcloud run services logs read SERVICE_NAME --region=us-central1
 
-## Next Steps
+# Common issues:
+# - Wrong Neo4j URI
+# - Invalid API keys
+# - Image not found (check GitHub Actions)
+```
 
-- Set up CI/CD with GitHub Actions (service account already created)
-- Add authentication to the API
-- Configure custom domain (requires Cloud Load Balancer)
-- Set up monitoring and alerting
-- Implement rate limiting
+### Terraform errors
+```bash
+# Refresh state
+terraform refresh
+
+# View state
+terraform state list
+
+# Force unlock if stuck
+terraform force-unlock LOCK_ID
+```
+
+### Images not found
+Check GitHub Actions workflow completed successfully:
+```
+https://github.com/YOUR_USERNAME/YOUR_REPO/actions
+```
+
+## 💰 Cost Estimates
+
+- **Development**: ~$10-20/month
+- **Production**: ~$150-300/month
+- Plus Neo4j Aura and Gemini API usage
+
+## 📚 Documentation
+
+- **Architecture**: `../services/ARCHITECTURE.md`
+- **Agent Details**: `../services/AGENTS_README.md`
+- **Quick Reference**: `../services/QUICK_REFERENCE.md`
+
+## ✅ Deployment Checklist
+
+- [ ] GCP project created
+- [ ] Billing enabled
+- [ ] `terraform.tfvars` configured
+- [ ] GitHub secrets added (for CI/CD)
+- [ ] `terraform init` completed
+- [ ] `terraform apply` successful
+- [ ] Health checks passing
+- [ ] API tested
+
+---
+
+**Deploy with:** `terraform apply` 🚀

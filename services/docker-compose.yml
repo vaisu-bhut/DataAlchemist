@@ -1,21 +1,89 @@
 services:
-  api:
-    build: .
-    container_name: fastapi_knowledge_engine
-    environment:
-      - NEO4J_URI=${NEO4J_URI}
-      - NEO4J_USER=${NEO4J_USER}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL_NAME=${GEMINI_MODEL_NAME}
-      - GEMINI_EMBEDDING_MODEL=${GEMINI_EMBEDDING_MODEL}
-      - SECRET_KEY=${SECRET_KEY}
-      - CHUNK_SIZE=${CHUNK_SIZE}
-      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD}
-      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD}
-      - MAX_RETRIEVAL_RESULTS=${MAX_RETRIEVAL_RESULTS}
+  pubsub:
+    build:
+      context: .
+      dockerfile: pubsub/Dockerfile
+    container_name: pubsub
+    ports:
+      - "8001:8001"
+    networks:
+      - agent-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
+  master-agent:
+    build:
+      context: .
+      dockerfile: agents/master/Dockerfile
+    container_name: master-agent
     ports:
       - "8000:8000"
-    volumes:
-      - ./logs:/app/logs
+    environment:
+      - PUBSUB_URL=http://pubsub:8001
+    env_file:
+      - .env
+    depends_on:
+      pubsub:
+        condition: service_healthy
+    networks:
+      - agent-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  ingest-agent:
+    build:
+      context: .
+      dockerfile: agents/ingest/Dockerfile
+    container_name: ingest-agent
+    ports:
+      - "8002:8002"
+    environment:
+      - PUBSUB_URL=http://pubsub:8001
+    env_file:
+      - .env
+    depends_on:
+      pubsub:
+        condition: service_healthy
+    networks:
+      - agent-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  chat-agent:
+    build:
+      context: .
+      dockerfile: agents/chat/Dockerfile
+    container_name: chat-agent
+    ports:
+      - "8003:8003"
+    environment:
+      - PUBSUB_URL=http://pubsub:8001
+    env_file:
+      - .env
+    depends_on:
+      pubsub:
+        condition: service_healthy
+    networks:
+      - agent-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+networks:
+  agent-network:
+    driver: bridge

@@ -1,251 +1,369 @@
-# Customer Conversation Knowledge Engine
+# Independent Agentic Workflow System
 
-A production-ready, containerized microservice that converts historical customer-agent chat logs into a searchable knowledge base using AI. The system extracts canonical issues and solutions, stores them in Neo4j with embeddings, and provides intelligent responses to customer queries.
+## Overview
 
-## Features
+Multi-agent system where each agent is completely independent and ready for Cloud Run deployment.
 
-- **Intelligent Ingestion**: Converts chat logs into canonical issues/solutions using Gemini LLM
-- **PII Protection**: Automatically redacts sensitive information
-- **Vector Search**: Semantic similarity search using embeddings
-- **Graph Storage**: Neo4j for relationships and provenance tracking
-- **AI Responses**: LLM-synthesized answers with source citations
-- **Human Review**: Quality control workflow for continuous improvement
-- **Containerized**: Full Docker setup for easy deployment
+## What Makes This "Agentic"?
 
-## Quick Start
+Unlike traditional monolithic FastAPI apps, this system uses **autonomous agents** that communicate asynchronously through a pub/sub message bus. Here's what makes it agentic:
 
-### Prerequisites
+### 🤖 Key Agentic Features
 
-- Docker and Docker Compose
-- Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+**1. LangGraph State Machine Orchestration**
+- The Master Agent uses **LangGraph** to manage complex workflows as state machines
+- Each request flows through defined states: `route → wait_response → complete`
+- Enables dynamic decision-making, retries, and conditional branching
+- Traditional apps use rigid request/response - agents use stateful workflows
 
-### Setup
+**2. Autonomous Agent Workers**
+- Each agent (Ingest, Chat) operates **independently** with its own lifecycle
+- Agents poll for work, process tasks, and publish results autonomously
+- No direct coupling - agents don't know about each other
+- Traditional apps have tightly coupled services with direct API calls
 
-1. **Clone and configure**:
-   ```bash
-   # Copy environment template
-   cp .env.example .env
-   
-   # Edit .env and add your Gemini API key
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
+**3. Asynchronous Message-Based Communication**
+- Agents communicate via **pub/sub topics** (not HTTP requests)
+- Non-blocking: Master doesn't wait synchronously for workers
+- Correlation IDs track requests across the distributed system
+- Traditional apps use synchronous REST APIs that block and timeout
 
-2. **Start services**:
-   ```bash
-   # Use the setup script (recommended)
-   ./scripts/docker_setup.sh    # Linux/Mac
-   # or
-   scripts\docker_setup.bat     # Windows
-   
-   # Or manually
-   docker-compose up -d
-   ```
+**4. Self-Contained Intelligence**
+- Each agent has its own **decision-making logic** (LLM integration, retrieval strategies)
+- Agents can adapt behavior based on context and state
+- Ingest agent decides how to chunk, extract, and store data
+- Chat agent decides which sources to use and how to synthesize responses
 
-3. **Wait for services** (Neo4j takes ~30 seconds to initialize):
-   ```bash
-   # Check logs
-   docker-compose logs -f
-   
-   # Test database connection
-   python scripts/db_management.py check
-   ```
+**5. Scalable & Resilient**
+- Agents scale independently (e.g., 10 chat agents, 2 ingest agents)
+- If one agent fails, others continue working
+- New agent types can be added without modifying existing ones
+- Traditional monoliths scale as a single unit and fail together
 
-4. **Test with sample data**:
-   ```bash
-   python test_data.py
-   ```
+### 🆚 Traditional FastAPI App vs Agentic System
 
-### API Endpoints
+| Traditional Monolith | Agentic System |
+|---------------------|----------------|
+| Single FastAPI app with routes | Multiple autonomous agents |
+| Synchronous request/response | Asynchronous message passing |
+| Direct function calls | Pub/sub communication |
+| Rigid control flow | State machine workflows (LangGraph) |
+| Scales as one unit | Each agent scales independently |
+| Tight coupling | Loose coupling via messages |
+| Single point of failure | Fault isolation per agent |
+| Hard to add new capabilities | Easy to add new agent types |
 
-**Health Check**:
-```bash
-curl http://localhost:8000/health
+### 💡 Why This Architecture?
+
+**For AI/LLM Workloads:**
+- LLM calls are slow (5-30 seconds) - async messaging prevents timeouts
+- Different tasks need different resources (chat needs more instances than ingest)
+- Agents can retry, backoff, and handle LLM rate limits independently
+
+**For Production Scale:**
+- Deploy to Cloud Run with auto-scaling per agent
+- Pay only for what you use (agents scale to zero)
+- Update one agent without redeploying the entire system
+- Add new agent types (e.g., "summarization agent") without touching existing code
+
+**For Maintainability:**
+- Each agent is a small, focused codebase
+- Shared business logic in `/services/` prevents duplication
+- Easy to test agents in isolation
+- Clear separation of concerns
+
+### 📝 Example: How a Chat Request Flows
+
+**Traditional Monolith:**
+```python
+# Single app - everything blocks
+@app.post("/chat")
+def chat(query: str):
+    embedding = llm.embed(query)        # Blocks 2s
+    results = db.search(embedding)      # Blocks 1s
+    response = llm.generate(results)    # Blocks 10s
+    return response                     # Total: 13s blocking
 ```
 
-**Ingest Conversations**:
-```bash
-curl -X POST http://localhost:8000/api/v1/ingest \
-  -H "Content-Type: application/json" \
-  -d '{
-    "conversations": [
-      {
-        "conversation_id": "conv_001",
-        "customer_id": "customer_123", 
-        "agent_id": "agent_456",
-        "messages": [
-          {
-            "role": "customer",
-            "content": "I cannot log into my account"
-          },
-          {
-            "role": "agent", 
-            "content": "Let me help you reset your password..."
-          }
-        ]
-      }
-    ]
-  }'
+**Agentic System:**
+```python
+# Master Agent (LangGraph workflow)
+@app.post("/chat")
+async def chat(query: str):
+    # 1. Route through state machine
+    state = {"request_type": "chat", "query": query}
+    
+    # 2. Publish to pub/sub (non-blocking)
+    await pubsub.publish("chat.request", state)
+    
+    # 3. Master continues, doesn't block
+    # 4. Chat agent polls, processes independently
+    # 5. Master receives result when ready
+    
+    return await workflow.run(state)  # Async, can handle 1000s of requests
 ```
 
-**Chat Query**:
-```bash
-curl -X POST http://localhost:8000/api/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "I cannot log into my account",
-    "customer_id": "customer_123"
-  }'
+**Chat Agent (Autonomous Worker):**
+```python
+# Polls for work independently
+async def poll_loop():
+    while True:
+        msg = await pubsub.poll("chat.request")
+        if msg:
+            # Process with full autonomy
+            result = await retrieval_service.retrieve_and_respond(msg["query"])
+            await pubsub.publish("chat.response", result)
 ```
 
-**Knowledge Stats**:
-```bash
-curl http://localhost:8000/api/v1/knowledge/stats
+**Benefits:**
+- Master handles 1000s of concurrent requests (non-blocking)
+- Chat agents scale independently (10 instances if needed)
+- LLM timeouts don't crash the master
+- Can add "summarization agent" without touching chat/ingest code
+
+## Architecture Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT REQUEST                          │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │ Master Agent   │ ◄── LangGraph State Machine
+                    │ (Port 8000)    │     • route → wait → complete
+                    └────────┬───────┘
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │   Pub/Sub      │ ◄── Message Bus
+                    │  (Port 8001)   │     • Topics: ingest.*, chat.*
+                    └────┬───────┬───┘     • Correlation IDs
+                         │       │
+           ┌─────────────┘       └─────────────┐
+           ▼                                   ▼
+    ┌──────────────┐                   ┌──────────────┐
+    │ Ingest Agent │                   │  Chat Agent  │
+    │ (Port 8002)  │                   │ (Port 8003)  │
+    └──────┬───────┘                   └──────┬───────┘
+           │                                   │
+           │  Uses Shared:                     │  Uses Shared:
+           │  • core/database.py               │  • core/database.py
+           │  • core/llm_service.py            │  • core/llm_service.py
+           │  • services/ingestion_service.py  │  • services/retrieval_service.py
+           │  • models/schemas.py              │  • models/schemas.py
+           │                                   │
+           └───────────┬───────────────────────┘
+                       ▼
+              ┌────────────────┐
+              │    Neo4j       │ ◄── Graph Database
+              │   Database     │     • Vector embeddings
+              └────────────────┘     • Knowledge graph
 ```
 
-## Architecture
+## Structure
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   FastAPI       │    │     Neo4j       │    │   Gemini API    │
-│   Service       │◄──►│   Database      │    │   (External)    │
-│                 │    │                 │    │                 │
-│ • Ingestion     │    │ • Graph Storage │    │ • LLM Tasks     │
-│ • Chat API      │    │ • Vector Index  │    │ • Embeddings    │
-│ • PII Redaction │    │ • Relationships │    │ • Synthesis     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+services/
+├── core/            # Shared core logic (database, LLM, config)
+├── models/          # Shared data models and schemas
+├── services/        # Shared business logic (ingestion, retrieval, PII)
+├── agents/          # Agent implementations
+│   ├── master/      # Orchestrator (LangGraph)
+│   ├── ingest/      # Data processor
+│   ├── chat/        # Query handler
+│   └── shared/      # Shared agent utilities
+├── pubsub/          # Message routing service
+├── .env             # Configuration
+└── README.md        # This file
 ```
 
-## Data Flow
+## Agents
 
-### Ingestion Pipeline
-1. **Input**: JSON conversations with customer/agent messages
-2. **PII Redaction**: Remove sensitive information
-3. **LLM Processing**: Extract canonical issues/solutions
-4. **Embedding Generation**: Create vector representations
-5. **Deduplication**: Merge similar existing issues
-6. **Graph Storage**: Store with full provenance in Neo4j
+### 1. Master Agent (`agents/master/`)
+- **Purpose**: API gateway with LangGraph orchestration
+- **Port**: 8000
+- **Dependencies**: Minimal (fastapi, langgraph, httpx)
 
-### Query Pipeline  
-1. **Query Input**: Customer question + context
-2. **Vector Search**: Find similar issues/solutions
-3. **Graph Expansion**: Retrieve related context
-4. **Ranking**: Score by similarity + quality + human review
-5. **LLM Synthesis**: Generate cited response
-6. **Response**: Return answer with sources and confidence
+### 2. Ingest Agent (`agents/ingest/`)
+- **Purpose**: Process and store conversations
+- **Port**: 8002
+- **Dependencies**: Uses shared core, models, and services
+
+### 3. Chat Agent (`agents/chat/`)
+- **Purpose**: Handle queries and generate responses
+- **Port**: 8003
+- **Dependencies**: Uses shared core, models, and services
+
+### 4. Pub/Sub Service (`pubsub/`)
+- **Purpose**: Message routing between agents
+- **Port**: 8001
+- **Dependencies**: Minimal (fastapi, structlog)
+
 
 ## Configuration
 
-Key environment variables in `.env`:
-
+Edit `.env`:
 ```bash
-# Required
-GEMINI_API_KEY=your_api_key
-
-# Optional (defaults provided)
-NEO4J_URI=bolt://neo4j:7687
+NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your_password
+GEMINI_API_KEY=your_key
+GEMINI_MODEL_NAME=gemini-2.5-pro
+GEMINI_EMBEDDING_MODEL=models/text-embedding-004
+SECRET_KEY=your-secret
+CHUNK_SIZE=2000
 SIMILARITY_THRESHOLD=0.85
 CONFIDENCE_THRESHOLD=0.7
 MAX_RETRIEVAL_RESULTS=10
 ```
 
-## Development
+## Build & Deploy Each Agent
 
-**View logs**:
+### Master Agent
 ```bash
-docker-compose logs -f api
-docker-compose logs -f neo4j
+cd agents/master
+docker build -t master-agent .
+docker run -p 8000:8000 -e PUBSUB_URL=http://pubsub:8001 master-agent
 ```
 
-**Access Neo4j Browser**:
-- URL: http://localhost:7474
-- Username: neo4j
-- Password: password123
-
-**API Documentation**:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Production Deployment
-
-For production:
-
-1. **Security**:
-   - Change default Neo4j password
-   - Set strong SECRET_KEY
-   - Enable TLS/SSL
-   - Add authentication middleware
-
-2. **Scaling**:
-   - Use managed Neo4j (Neo4j Aura)
-   - Deploy API with load balancer
-   - Add Redis for caching
-   - Implement rate limiting
-
-3. **Monitoring**:
-   - Add structured logging
-   - Implement health checks
-   - Monitor embedding costs
-   - Track response quality metrics
-
-## Data Persistence
-
-The system uses Docker named volumes for Neo4j data persistence:
-
-- `neo4j_data`: Database files and indexes
-- `neo4j_logs`: Database logs
-- `neo4j_import`: Import directory
-- `neo4j_plugins`: Plugin files
-
-**Data Management**:
+### Ingest Agent
 ```bash
-# Check database status
-python scripts/db_management.py info
-
-# Initialize schema (if needed)
-python scripts/db_management.py init
-
-# Clear all data (caution!)
-python scripts/db_management.py clear
+cd agents/ingest
+docker build -t ingest-agent .
+docker run -p 8002:8002 --env-file ../../.env ingest-agent
 ```
 
-**Backup/Restore**:
+### Chat Agent
 ```bash
-# Backup volumes
-docker run --rm -v neo4j_data:/data -v $(pwd):/backup alpine tar czf /backup/neo4j_backup.tar.gz /data
-
-# Restore volumes
-docker run --rm -v neo4j_data:/data -v $(pwd):/backup alpine tar xzf /backup/neo4j_backup.tar.gz -C /
+cd agents/chat
+docker build -t chat-agent .
+docker run -p 8003:8003 --env-file ../../.env chat-agent
 ```
 
-## Troubleshooting
+### Pub/Sub
+```bash
+cd pubsub
+docker build -t pubsub-service .
+docker run -p 8001:8001 pubsub-service
+```
 
-**Services won't start**:
-- Check Docker is running
-- Verify ports 7474, 7687, 8000 are available
-- Check logs: `docker-compose logs`
-- Use setup script: `./scripts/docker_setup.sh`
+## Cloud Run Deployment
 
-**Database connection issues**:
-- Wait for Neo4j health check to pass
-- Test connection: `python scripts/db_management.py check`
-- Check Neo4j logs: `docker-compose logs neo4j`
+Each agent deploys independently:
 
-**Data persistence problems**:
-- Verify named volumes exist: `docker volume ls`
-- Check volume mounts in docker-compose.yml
-- Ensure proper shutdown: `docker-compose down` (not `docker-compose down -v`)
+```bash
+# Set project
+export PROJECT_ID=your-gcp-project
+export REGION=us-central1
 
-**Ingestion fails**:
-- Verify Gemini API key is valid
-- Check Neo4j connection
-- Review conversation format
+# Deploy Pub/Sub
+cd pubsub
+gcloud builds submit --tag gcr.io/$PROJECT_ID/pubsub
+gcloud run deploy pubsub --image gcr.io/$PROJECT_ID/pubsub --region $REGION --port 8001
 
-**No search results**:
-- Ensure data was ingested successfully
-- Check similarity thresholds
-- Verify embeddings were generated
+# Deploy Master
+cd ../agents/master
+gcloud builds submit --tag gcr.io/$PROJECT_ID/master
+gcloud run deploy master --image gcr.io/$PROJECT_ID/master --region $REGION --port 8000
 
-**Low response quality**:
-- Review and approve solutions via human workflow
-- Adjust confidence thresholds
-- Add more training conversations
+# Deploy Ingest
+cd ../ingest
+gcloud builds submit --tag gcr.io/$PROJECT_ID/ingest
+gcloud run deploy ingest --image gcr.io/$PROJECT_ID/ingest --region $REGION --port 8002 \
+  --set-secrets NEO4J_URI=neo4j-uri:latest,GEMINI_API_KEY=gemini-key:latest
+
+# Deploy Chat
+cd ../chat
+gcloud builds submit --tag gcr.io/$PROJECT_ID/chat
+gcloud run deploy chat --image gcr.io/$PROJECT_ID/chat --region $REGION --port 8003 \
+  --set-secrets NEO4J_URI=neo4j-uri:latest,GEMINI_API_KEY=gemini-key:latest
+```
+
+## API Usage
+
+### Ingest
+```bash
+curl -X POST http://localhost:8000/api/v1/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"conversations": [{"conversation_id": "1", "customer_id": "c1", "agent_id": "a1", "messages": [{"role": "customer", "content": "help"}]}]}'
+```
+
+### Chat
+```bash
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "How do I get help?"}'
+```
+
+## Scaling
+
+Each agent scales independently on Cloud Run:
+
+```bash
+gcloud run services update ingest --min-instances 1 --max-instances 10
+gcloud run services update chat --min-instances 2 --max-instances 20
+```
+
+## Benefits
+
+✅ **Independent**: Each agent is self-contained
+✅ **Scalable**: Scale each agent independently
+✅ **Isolated**: Fault isolation between agents
+✅ **Cloud Ready**: Deploy to Cloud Run immediately
+✅ **Cost Optimized**: Pay only for what you use
+
+## Architecture
+
+```
+Client → Master Agent (LangGraph) → Pub/Sub → Ingest/Chat Agents → Neo4j
+```
+
+Each agent:
+- Builds independently
+- Deploys independently
+- Scales independently (0 to N instances)
+- Fails independently (no cascading failures)
+
+---
+
+**Ready for Cloud Run deployment!** 🚀
+
+
+## Quick Deploy to Cloud Run
+
+### Prerequisites
+- GCP account with billing enabled
+- gcloud CLI installed
+- Neo4j Aura database
+
+### One-Command Deploy
+
+```bash
+# 1. Setup secrets (first time only)
+chmod +x setup-secrets.sh
+./setup-secrets.sh
+
+# 2. Deploy all agents
+chmod +x deploy.sh
+./deploy.sh
+```
+
+### Manual Deploy
+
+See `DEPLOY_TO_CLOUD_RUN.md` for detailed step-by-step instructions.
+
+## Files
+
+- **README.md** - This file (main guide)
+- **DEPLOY_TO_CLOUD_RUN.md** - Detailed deployment guide
+- **deploy.sh** - Automated deployment script
+- **setup-secrets.sh** - Setup GCP secrets
+- **.env** - Local configuration template
+
+## Support
+
+For deployment issues:
+1. Check `DEPLOY_TO_CLOUD_RUN.md`
+2. View Cloud Run logs: `gcloud run services logs read SERVICE_NAME`
+3. Check service status: `gcloud run services describe SERVICE_NAME`

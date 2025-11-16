@@ -1,1 +1,1 @@
-# Services module
+# Shared business logic services
