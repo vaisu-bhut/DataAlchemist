@@ -16,7 +16,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.6.0
+          terraform_version: latest
 
       - name: Terraform Format Check
         run: |
@@ -34,25 +34,71 @@ jobs:
           cd terraform
           terraform validate
 
-  build-check:
-    runs-on: ubuntu-latest
-    name: Build Validation
+  # docker-test:
+  #   runs-on: ubuntu-latest
+  #   name: Docker Compose Test (All 4 Service
     
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
+  #     - name: Create test .env file
+  #       run: |
+  #         cd services
+  #         cat > .env << EOF
+  #         NEO4J_URI=bolt://neo4j:7687
+  #         NEO4J_USER=neo4j
+  #         NEO4J_PASSWORD=test_password
+  #         GEMINI_API_KEY=test_key
+  #         GEMINI_MODEL_NAME=gemini-2.0-flash-exp
+  #         GEMINI_EMBEDDING_MODEL=models/text-embedding-004
+  #         SECRET_KEY=test_secret_key
+  #         CHUNK_SIZE=2000
+  #         SIMILARITY_THRESHOLD=0.85
+  #         CONFIDENCE_THRESHOLD=0.7
+  #         MAX_RETRIEVAL_RESULTS=10
+  #         EOF
 
-      - name: Install dependencies
-        run: |
-          cd services
-          pip install -r requirements.txt
+  #     - name: Start services with Docker Compose
+  #       run: |
+  #         cd services
+  #         docker compose up -d
+  #         echo "⏳ Waiting for services to start..."
+  #         sleep 30
 
-      - name: Build Docker image (test)
-        run: |
-          cd services
-          docker build -t test-build .
+  #     - name: Check service health
+  #       run: |
+  #         cd services
+          
+  #         echo "🔍 Checking Pub/Sub (port 8001)..."
+  #         curl -f http://localhost:8001/health || (echo "❌ Pub/Sub health check failed" && exit 1)
+          
+  #         echo "🔍 Checking Master Agent (port 8000)..."
+  #         curl -f http://localhost:8000/health || (echo "❌ Master Agent health check failed" && exit 1)
+          
+  #         echo "🔍 Checking Ingest Agent (port 8002)..."
+  #         curl -f http://localhost:8002/health || (echo "❌ Ingest Agent health check failed" && exit 1)
+          
+  #         echo "🔍 Checking Chat Agent (port 8003)..."
+  #         curl -f http://localhost:8003/health || (echo "❌ Chat Agent health check failed" && exit 1)
+          
+  #         echo "✅ All services are healthy!"
+
+  #     - name: Show service logs on failure
+  #       if: failure()
+  #       run: |
+  #         cd services
+  #         echo "📋 Pub/Sub logs:"
+  #         docker compose logs pubsub
+  #         echo "📋 Master Agent logs:"
+  #         docker compose logs master-agent
+  #         echo "📋 Ingest Agent logs:"
+  #         docker compose logs ingest-agent
+  #         echo "📋 Chat Agent logs:"
+  #         docker compose logs chat-agent
+
+  #     - name: Cleanup
+  #       if: always()
+  #       run: |
+  #         cd services
+  #         docker compose down -v

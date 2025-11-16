@@ -46,7 +46,7 @@ variable "gemini_api_key" {
 variable "gemini_model_name" {
   description = "Gemini model name"
   type        = string
-  default     = "gemini-2.5-pro"
+  default     = "gemini-2.0-flash-exp"
 }
 
 variable "gemini_embedding_model" {
