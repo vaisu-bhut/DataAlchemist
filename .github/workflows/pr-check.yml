@@ -16,7 +16,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 6.5.0
+          terraform_version: latest
 
       - name: Terraform Format Check
         run: |
@@ -36,7 +36,7 @@ jobs:
 
   docker-test:
     runs-on: ubuntu-latest
-    name: Docker Compose Test (All 4 Services)
+    name: Docker Compose Test (All 4 Service
     
     steps:
       - name: Checkout code
