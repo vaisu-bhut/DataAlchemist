@@ -79,7 +79,7 @@ jobs:
       - name: Start services with Docker Compose
         run: |
           cd services
-          docker-compose up -d
+          docker compose up -d
           echo "⏳ Waiting for services to start..."
           sleep 30
 
@@ -106,16 +106,16 @@ jobs:
         run: |
           cd services
           echo "📋 Pub/Sub logs:"
-          docker-compose logs pubsub
+          docker compose logs pubsub
           echo "📋 Master Agent logs:"
-          docker-compose logs master-agent
+          docker compose logs master-agent
           echo "📋 Ingest Agent logs:"
-          docker-compose logs ingest-agent
+          docker compose logs ingest-agent
           echo "📋 Chat Agent logs:"
-          docker-compose logs chat-agent
+          docker compose logs chat-agent
 
       - name: Cleanup
         if: always()
         run: |
           cd services
-          docker-compose down -v
+          docker compose down -v
