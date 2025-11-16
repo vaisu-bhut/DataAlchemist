@@ -4,15 +4,176 @@
 
 Multi-agent system where each agent is completely independent and ready for Cloud Run deployment.
 
+## What Makes This "Agentic"?
+
+Unlike traditional monolithic FastAPI apps, this system uses **autonomous agents** that communicate asynchronously through a pub/sub message bus. Here's what makes it agentic:
+
+### 🤖 Key Agentic Features
+
+**1. LangGraph State Machine Orchestration**
+- The Master Agent uses **LangGraph** to manage complex workflows as state machines
+- Each request flows through defined states: `route → wait_response → complete`
+- Enables dynamic decision-making, retries, and conditional branching
+- Traditional apps use rigid request/response - agents use stateful workflows
+
+**2. Autonomous Agent Workers**
+- Each agent (Ingest, Chat) operates **independently** with its own lifecycle
+- Agents poll for work, process tasks, and publish results autonomously
+- No direct coupling - agents don't know about each other
+- Traditional apps have tightly coupled services with direct API calls
+
+**3. Asynchronous Message-Based Communication**
+- Agents communicate via **pub/sub topics** (not HTTP requests)
+- Non-blocking: Master doesn't wait synchronously for workers
+- Correlation IDs track requests across the distributed system
+- Traditional apps use synchronous REST APIs that block and timeout
+
+**4. Self-Contained Intelligence**
+- Each agent has its own **decision-making logic** (LLM integration, retrieval strategies)
+- Agents can adapt behavior based on context and state
+- Ingest agent decides how to chunk, extract, and store data
+- Chat agent decides which sources to use and how to synthesize responses
+
+**5. Scalable & Resilient**
+- Agents scale independently (e.g., 10 chat agents, 2 ingest agents)
+- If one agent fails, others continue working
+- New agent types can be added without modifying existing ones
+- Traditional monoliths scale as a single unit and fail together
+
+### 🆚 Traditional FastAPI App vs Agentic System
+
+| Traditional Monolith | Agentic System |
+|---------------------|----------------|
+| Single FastAPI app with routes | Multiple autonomous agents |
+| Synchronous request/response | Asynchronous message passing |
+| Direct function calls | Pub/sub communication |
+| Rigid control flow | State machine workflows (LangGraph) |
+| Scales as one unit | Each agent scales independently |
+| Tight coupling | Loose coupling via messages |
+| Single point of failure | Fault isolation per agent |
+| Hard to add new capabilities | Easy to add new agent types |
+
+### 💡 Why This Architecture?
+
+**For AI/LLM Workloads:**
+- LLM calls are slow (5-30 seconds) - async messaging prevents timeouts
+- Different tasks need different resources (chat needs more instances than ingest)
+- Agents can retry, backoff, and handle LLM rate limits independently
+
+**For Production Scale:**
+- Deploy to Cloud Run with auto-scaling per agent
+- Pay only for what you use (agents scale to zero)
+- Update one agent without redeploying the entire system
+- Add new agent types (e.g., "summarization agent") without touching existing code
+
+**For Maintainability:**
+- Each agent is a small, focused codebase
+- Shared business logic in `/services/` prevents duplication
+- Easy to test agents in isolation
+- Clear separation of concerns
+
+### 📝 Example: How a Chat Request Flows
+
+**Traditional Monolith:**
+```python
+# Single app - everything blocks
+@app.post("/chat")
+def chat(query: str):
+    embedding = llm.embed(query)        # Blocks 2s
+    results = db.search(embedding)      # Blocks 1s
+    response = llm.generate(results)    # Blocks 10s
+    return response                     # Total: 13s blocking
+```
+
+**Agentic System:**
+```python
+# Master Agent (LangGraph workflow)
+@app.post("/chat")
+async def chat(query: str):
+    # 1. Route through state machine
+    state = {"request_type": "chat", "query": query}
+    
+    # 2. Publish to pub/sub (non-blocking)
+    await pubsub.publish("chat.request", state)
+    
+    # 3. Master continues, doesn't block
+    # 4. Chat agent polls, processes independently
+    # 5. Master receives result when ready
+    
+    return await workflow.run(state)  # Async, can handle 1000s of requests
+```
+
+**Chat Agent (Autonomous Worker):**
+```python
+# Polls for work independently
+async def poll_loop():
+    while True:
+        msg = await pubsub.poll("chat.request")
+        if msg:
+            # Process with full autonomy
+            result = await retrieval_service.retrieve_and_respond(msg["query"])
+            await pubsub.publish("chat.response", result)
+```
+
+**Benefits:**
+- Master handles 1000s of concurrent requests (non-blocking)
+- Chat agents scale independently (10 instances if needed)
+- LLM timeouts don't crash the master
+- Can add "summarization agent" without touching chat/ingest code
+
+## Architecture Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT REQUEST                          │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │ Master Agent   │ ◄── LangGraph State Machine
+                    │ (Port 8000)    │     • route → wait → complete
+                    └────────┬───────┘
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │   Pub/Sub      │ ◄── Message Bus
+                    │  (Port 8001)   │     • Topics: ingest.*, chat.*
+                    └────┬───────┬───┘     • Correlation IDs
+                         │       │
+           ┌─────────────┘       └─────────────┐
+           ▼                                   ▼
+    ┌──────────────┐                   ┌──────────────┐
+    │ Ingest Agent │                   │  Chat Agent  │
+    │ (Port 8002)  │                   │ (Port 8003)  │
+    └──────┬───────┘                   └──────┬───────┘
+           │                                   │
+           │  Uses Shared:                     │  Uses Shared:
+           │  • core/database.py               │  • core/database.py
+           │  • core/llm_service.py            │  • core/llm_service.py
+           │  • services/ingestion_service.py  │  • services/retrieval_service.py
+           │  • models/schemas.py              │  • models/schemas.py
+           │                                   │
+           └───────────┬───────────────────────┘
+                       ▼
+              ┌────────────────┐
+              │    Neo4j       │ ◄── Graph Database
+              │   Database     │     • Vector embeddings
+              └────────────────┘     • Knowledge graph
+```
+
 ## Structure
 
 ```
 services/
-├── agents/
+├── core/            # Shared core logic (database, LLM, config)
+├── models/          # Shared data models and schemas
+├── services/        # Shared business logic (ingestion, retrieval, PII)
+├── agents/          # Agent implementations
 │   ├── master/      # Orchestrator (LangGraph)
-│   ├── ingest/      # Data processor (self-contained)
-│   └── chat/        # Query handler (self-contained)
-├── pubsub/          # Message routing
+│   ├── ingest/      # Data processor
+│   ├── chat/        # Query handler
+│   └── shared/      # Shared agent utilities
+├── pubsub/          # Message routing service
 ├── .env             # Configuration
 └── README.md        # This file
 ```
@@ -23,27 +184,21 @@ services/
 - **Purpose**: API gateway with LangGraph orchestration
 - **Port**: 8000
 - **Dependencies**: Minimal (fastapi, langgraph, httpx)
-- **Size**: ~200 MB
 
 ### 2. Ingest Agent (`agents/ingest/`)
 - **Purpose**: Process and store conversations
 - **Port**: 8002
-- **Dependencies**: Full stack (bundled: core, models, services)
-- **Size**: ~800 MB
-- **Self-contained**: Yes
+- **Dependencies**: Uses shared core, models, and services
 
 ### 3. Chat Agent (`agents/chat/`)
 - **Purpose**: Handle queries and generate responses
 - **Port**: 8003
-- **Dependencies**: Full stack (bundled: core, models, services)
-- **Size**: ~800 MB
-- **Self-contained**: Yes
+- **Dependencies**: Uses shared core, models, and services
 
 ### 4. Pub/Sub Service (`pubsub/`)
 - **Purpose**: Message routing between agents
 - **Port**: 8001
 - **Dependencies**: Minimal (fastapi, structlog)
-- **Size**: ~150 MB
 
 
 ## Configuration

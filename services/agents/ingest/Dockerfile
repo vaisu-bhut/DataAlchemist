@@ -10,10 +10,12 @@ COPY agents/ingest/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy shared code
-COPY agents/shared /app/agents/shared
 COPY core /app/core
+COPY models /app/models
+COPY services /app/services
+COPY agents/shared /app/agents/shared
 
-# Copy agent code (includes models, services, etc.)
+# Copy agent code
 COPY agents/ingest /app/agents/ingest
 
 WORKDIR /app/agents/ingest
