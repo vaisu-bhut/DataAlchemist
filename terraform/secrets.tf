@@ -1,5 +1,3 @@
-# Secret Manager secrets - Grouped by purpose
-
 # Database Credentials (Neo4j)
 resource "google_secret_manager_secret" "database_credentials" {
   secret_id = "database-credentials"
@@ -34,6 +32,10 @@ resource "google_secret_manager_secret_version" "api_keys" {
     gemini_model_name      = var.gemini_model_name
     gemini_embedding_model = var.gemini_embedding_model
     app_secret_key         = var.secret_key
+    chunk_size             = var.chunk_size
+    similarity_threshold   = var.similarity_threshold
+    confidence_threshold   = var.confidence_threshold
+    max_retrieval_results  = var.max_retrieval_results
   })
 }
 
