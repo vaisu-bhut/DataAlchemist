@@ -69,3 +69,31 @@ class SolutionNode(BaseModel):
     human_reviewed: bool = False
     created_at: datetime
     updated_at: datetime
+
+# ============ Analytics & Metrics Models ============
+
+class IssueStats(BaseModel):
+    issue_id: str
+    issue_description: str
+    total_occurrences: int
+    resolved_count: int
+    avg_resolution_time_minutes: Optional[float] = None
+    last_occurrence: Optional[datetime] = None
+
+class AgentPerformance(BaseModel):
+    agent_id: str
+    total_chats: int
+    resolved_chats: int
+    avg_resolution_time_minutes: Optional[float] = None
+    resolution_rate: float
+    top_issues: List[Dict[str, Any]] = Field(default_factory=list)
+
+class MetricsSummary(BaseModel):
+    total_conversations: int
+    total_issues: int
+    total_solutions: int
+    total_agents: int
+    total_customers: int
+    avg_resolution_time_minutes: Optional[float] = None
+    top_issues: List[IssueStats] = Field(default_factory=list)
+    top_agents: List[AgentPerformance] = Field(default_factory=list)
