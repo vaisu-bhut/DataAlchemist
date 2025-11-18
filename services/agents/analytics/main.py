@@ -71,9 +71,7 @@ async def root():
         "endpoints": [
             "/api/v1/analytics/summary",
             "/api/v1/analytics/issues/distribution",
-            "/api/v1/analytics/issues/trending",
-            "/api/v1/analytics/agents/performance",
-            "/api/v1/analytics/agents/{agent_id}/specialization"
+            "/api/v1/analytics/agents/performance"
         ]
     }
 
@@ -126,23 +124,6 @@ async def get_issue_distribution(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/analytics/issues/trending")
-async def get_trending_issues(
-    days: int = Query(default=7, ge=1, le=90, description="Number of days to look back")
-):
-    """Get trending issues in the last N days"""
-    try:
-        trending = await analytics_service.get_trending_issues(days=days)
-        return {
-            "period_days": days,
-            "total": len(trending),
-            "trending_issues": trending
-        }
-    except Exception as e:
-        logger.error("Failed to get trending issues", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/api/v1/analytics/agents/performance")
 async def get_agent_performance(
     limit: int = Query(default=10, ge=1, le=100, description="Number of top agents to return")
@@ -156,17 +137,6 @@ async def get_agent_performance(
         }
     except Exception as e:
         logger.error("Failed to get agent performance", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/v1/analytics/agents/{agent_id}/specialization")
-async def get_agent_specialization(agent_id: str):
-    """Get what issues a specific agent handles most"""
-    try:
-        specialization = await analytics_service.get_agent_specialization(agent_id)
-        return specialization
-    except Exception as e:
-        logger.error("Failed to get agent specialization", error=str(e), agent_id=agent_id)
         raise HTTPException(status_code=500, detail=str(e))
 
 
