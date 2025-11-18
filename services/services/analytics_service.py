@@ -265,6 +265,90 @@ class AnalyticsService:
             logger.error("Failed to get resolution time stats", error=str(e))
             raise
     
+    async def get_escalation_analytics(self) -> Dict[str, Any]:
+        """Get analytics on human escalation vs AI resolution"""
+        try:
+            # Overall escalation stats
+            # Since escalated_to_human field doesn't exist, we assume:
+            # - Conversations with agent_id are handled by AI agents
+            # - Conversations without agent_id or with resolved_at = null might need human intervention
+            overall_query = """
+            MATCH (c:Conversation)
+            WITH count(c) as total_conversations,
+                 sum(CASE WHEN c.resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved_conversations,
+                 sum(CASE WHEN c.agent_id IS NOT NULL AND c.resolved_at IS NOT NULL THEN 1 ELSE 0 END) as ai_resolved_conversations,
+                 sum(CASE WHEN c.resolved_at IS NULL THEN 1 ELSE 0 END) as unresolved_conversations
+            RETURN 
+                total_conversations,
+                resolved_conversations,
+                ai_resolved_conversations,
+                unresolved_conversations,
+                round(toFloat(ai_resolved_conversations) / total_conversations * 100, 2) as ai_resolution_rate,
+                round(toFloat(unresolved_conversations) / total_conversations * 100, 2) as unresolved_rate
+            """
+            
+            overall_results = await self.db.execute_query(overall_query)
+            overall = overall_results[0] if overall_results else {}
+            
+            # Resolution by issue type
+            by_issue_query = """
+            MATCH (c:Conversation)-[:CONTAINS_ISSUE]->(i:Issue)
+            WITH i.one_liner as issue_description,
+                 count(c) as total_occurrences,
+                 sum(CASE WHEN c.resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved_count,
+                 sum(CASE WHEN c.resolved_at IS NULL THEN 1 ELSE 0 END) as unresolved_count
+            RETURN 
+                issue_description,
+                total_occurrences,
+                resolved_count,
+                unresolved_count,
+                round(toFloat(resolved_count) / total_occurrences * 100, 2) as resolution_rate
+            ORDER BY total_occurrences DESC
+            LIMIT 10
+            """
+            
+            by_issue_results = await self.db.execute_query(by_issue_query)
+            
+            by_issue = []
+            for r in by_issue_results:
+                by_issue.append({
+                    "issue_description": r['issue_description'],
+                    "total_occurrences": r['total_occurrences'],
+                    "resolved": r['resolved_count'],
+                    "unresolved": r['unresolved_count'],
+                    "resolution_rate_percent": r['resolution_rate']
+                })
+            
+            # Calculate human effort saved
+            total_convs = overall.get('total_conversations', 0)
+            ai_resolved = overall.get('ai_resolved_conversations', 0)
+            
+            # Assume average human handling time is 15 minutes per conversation
+            avg_human_time_minutes = 15
+            time_saved_minutes = ai_resolved * avg_human_time_minutes
+            time_saved_hours = round(time_saved_minutes / 60, 2)
+            
+            return {
+                "summary": {
+                    "total_conversations": total_convs,
+                    "resolved_by_ai_agents": ai_resolved,
+                    "unresolved": overall.get('unresolved_conversations', 0),
+                    "ai_resolution_rate_percent": overall.get('ai_resolution_rate', 0),
+                    "unresolved_rate_percent": overall.get('unresolved_rate', 0)
+                },
+                "human_effort_saved": {
+                    "conversations_handled_by_ai": ai_resolved,
+                    "estimated_time_saved_hours": time_saved_hours,
+                    "estimated_time_saved_days": round(time_saved_hours / 8, 2),
+                    "assumption": f"Based on {avg_human_time_minutes} minutes average human handling time per conversation"
+                },
+                "by_issue_type": by_issue
+            }
+            
+        except Exception as e:
+            logger.error("Failed to get escalation analytics", error=str(e))
+            raise
+    
     async def get_agent_performance(self, limit: int = 10) -> List[AgentPerformance]:
         """Get agent performance metrics"""
         try:

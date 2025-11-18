@@ -74,7 +74,8 @@ async def root():
             "/api/v1/analytics/agents/performance",
             "/api/v1/analytics/customers",
             "/api/v1/analytics/customers/{customer_id}/issues",
-            "/api/v1/analytics/resolution-time"
+            "/api/v1/analytics/resolution-time",
+            "/api/v1/analytics/escalation"
         ]
     }
 
@@ -178,6 +179,17 @@ async def get_resolution_time_stats():
         return stats
     except Exception as e:
         logger.error("Failed to get resolution time stats", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/analytics/escalation")
+async def get_escalation_analytics():
+    """Get analytics on human escalation vs AI resolution"""
+    try:
+        analytics = await analytics_service.get_escalation_analytics()
+        return analytics
+    except Exception as e:
+        logger.error("Failed to get escalation analytics", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
