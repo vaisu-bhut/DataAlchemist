@@ -98,7 +98,9 @@ async def chat(request: ChatRequest):
 async def get_analytics(endpoint: str):
     """Proxy analytics requests to analytics agent"""
     try:
-        analytics_url = os.getenv("ANALYTICS_URL", "http://analytics-agent:8004")
+        # In unified container, analytics runs on localhost:8004
+        # In separate services, set ANALYTICS_URL env var
+        analytics_url = os.getenv("ANALYTICS_URL", "http://localhost:8004")
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{analytics_url}/api/v1/analytics/{endpoint}",

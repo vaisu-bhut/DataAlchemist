@@ -80,10 +80,20 @@ stdout_logfile=/dev/stdout
 stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
+
+[program:analytics-agent]
+command=uvicorn main:app --host 0.0.0.0 --port 8004
+directory=/app/agents/analytics
+autostart=true
+autorestart=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
 EOF
 
 # Expose all ports
-EXPOSE 8000 8001 8002 8003
+EXPOSE 8000 8001 8002 8003 8004
 
 # Health check script
 COPY <<'EOF' /app/healthcheck.sh
@@ -91,7 +101,8 @@ COPY <<'EOF' /app/healthcheck.sh
 curl -f http://localhost:8001/health && \
 curl -f http://localhost:8000/health && \
 curl -f http://localhost:8002/health && \
-curl -f http://localhost:8003/health
+curl -f http://localhost:8003/health && \
+curl -f http://localhost:8004/health
 EOF
 
 RUN chmod +x /app/healthcheck.sh
