@@ -195,7 +195,17 @@ services/
 - **Port**: 8003
 - **Dependencies**: Uses shared core, models, and services
 
-### 4. Pub/Sub Service (`pubsub/`)
+### 4. Analytics Agent (`agents/analytics/`) ⭐ NEW
+- **Purpose**: Provides metrics and statistics API
+- **Port**: 8004
+- **Dependencies**: Uses shared core, models, and analytics service
+- **Features**:
+  - Summary metrics (conversations, issues, agents)
+  - Issue distribution and trending
+  - Agent performance tracking
+  - Agent specialization analysis
+
+### 5. Pub/Sub Service (`pubsub/`)
 - **Purpose**: Message routing between agents
 - **Port**: 8001
 - **Dependencies**: Minimal (fastapi, structlog)
@@ -294,6 +304,24 @@ curl -X POST http://localhost:8000/api/v1/ingest \
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{"query": "How do I get help?"}'
+```
+
+### Analytics ⭐ NEW
+```bash
+# Get summary metrics
+curl http://localhost:8004/api/v1/analytics/summary
+
+# Get top issues
+curl http://localhost:8004/api/v1/analytics/issues/distribution?limit=10
+
+# Get trending issues (last 7 days)
+curl http://localhost:8004/api/v1/analytics/issues/trending?days=7
+
+# Get agent performance
+curl http://localhost:8004/api/v1/analytics/agents/performance?limit=10
+
+# Get agent specialization
+curl http://localhost:8004/api/v1/analytics/agents/agent123/specialization
 ```
 
 ## Scaling

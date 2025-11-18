@@ -112,37 +112,69 @@ class IngestionService:
         """Store processed data in Neo4j"""
         timestamp = datetime.utcnow()
         
-        # Create conversation node
-        conversation_query = """
-        MERGE (c:Conversation {id: $conversation_id})
-        SET c.customer_id = $customer_id,
-            c.agent_id = $agent_id,
-            c.raw_text = $raw_text,
-            c.summary = $summary,
-            c.batch_id = $batch_id,
-            c.created_at = $created_at,
-            c.updated_at = $timestamp
-        """
-        
-        # Use direct driver access instead of wrapper
+        # Use a single transaction to create everything atomically
         async with self.neo4j.driver.session(database="neo4j") as session:
-            result = await session.run(conversation_query, {
+            # Single query that creates Customer, Agent, Conversation and all relationships
+            query = """
+            // Create Customer node
+            MERGE (cust:Customer {id: $customer_id})
+            
+            // Create Agent node if agent_id provided
+            WITH cust
+            CALL {
+                WITH cust
+                WITH cust, $agent_id as aid
+                WHERE aid IS NOT NULL
+                MERGE (agent:Agent {id: aid})
+                RETURN agent
+            }
+            
+            // Create Conversation node
+            WITH cust
+            MERGE (conv:Conversation {id: $conversation_id})
+            SET conv.customer_id = $customer_id,
+                conv.agent_id = $agent_id,
+                conv.raw_text = $raw_text,
+                conv.summary = $summary,
+                conv.batch_id = $batch_id,
+                conv.created_at = CASE WHEN $created_at IS NOT NULL THEN datetime($created_at) ELSE datetime($timestamp) END,
+                conv.resolved_at = CASE WHEN $resolved_at IS NOT NULL THEN datetime($resolved_at) ELSE null END,
+                conv.updated_at = datetime($timestamp)
+            
+            // Create BELONGS_TO relationship
+            MERGE (conv)-[:BELONGS_TO]->(cust)
+            
+            // Create HANDLED_BY relationship if agent exists
+            WITH conv
+            OPTIONAL MATCH (agent:Agent {id: $agent_id})
+            WHERE $agent_id IS NOT NULL
+            FOREACH (a IN CASE WHEN agent IS NOT NULL THEN [agent] ELSE [] END |
+                MERGE (conv)-[:HANDLED_BY]->(a)
+            )
+            
+            RETURN conv.id as conversation_id
+            """
+            
+            result = await session.run(query, {
                 'conversation_id': conversation.conversation_id,
                 'customer_id': conversation.customer_id,
                 'agent_id': conversation.agent_id,
                 'raw_text': conversation_text,
                 'summary': canonical_data.get('conversation_summary', ''),
                 'batch_id': batch_id,
-                'created_at': conversation.created_at or timestamp,
-                'timestamp': timestamp
+                'created_at': conversation.created_at.isoformat() if conversation.created_at else None,
+                'resolved_at': conversation.resolved_at.isoformat() if conversation.resolved_at else None,
+                'timestamp': timestamp.isoformat()
             })
+            
             summary = await result.consume()
             result_data = {
                 "nodes_created": summary.counters.nodes_created,
                 "relationships_created": summary.counters.relationships_created,
                 "properties_set": summary.counters.properties_set
             }
-        logger.info(f"Conversation node created/updated: {result_data}")
+            
+        logger.info(f"Conversation stored: {result_data}")
         
         # Process issues
         issues = canonical_data.get('issues', [])
@@ -279,22 +311,29 @@ class IngestionService:
     
     async def _find_similar_issues(self, embedding: List[float], threshold: float = 0.85) -> List[Dict]:
         """Find similar issues using vector similarity"""
-        query = """
-        CALL db.index.vector.queryNodes('issue_embeddings', $k, $embedding)
-        YIELD node as i, score
-        WHERE score >= $threshold
-        RETURN i, score
-        ORDER BY score DESC
-        """
-        
-        # Use direct driver access
-        async with self.neo4j.driver.session(database="neo4j") as session:
-            result = await session.run(query, {
-                'embedding': embedding,
-                'k': 5,
-                'threshold': threshold
-            })
-            records = []
-            async for record in result:
-                records.append(record.data())
-            return records
+        try:
+            query = """
+            CALL db.index.vector.queryNodes('issue_embeddings', $k, $embedding)
+            YIELD node as i, score
+            WHERE score >= $threshold
+            RETURN i, score
+            ORDER BY score DESC
+            """
+            
+            # Use direct driver access
+            async with self.neo4j.driver.session(database="neo4j") as session:
+                result = await session.run(query, {
+                    'embedding': embedding,
+                    'k': 5,
+                    'threshold': threshold
+                })
+                records = []
+                async for record in result:
+                    records.append(record.data())
+                return records
+        except Exception as e:
+            # If vector index doesn't exist, log warning and return empty
+            # This allows ingestion to continue without vector similarity
+            logger.warning(f"Vector similarity search failed (index may not exist): {e}")
+            logger.info("Continuing without similarity matching - each issue will be created as new")
+            return []

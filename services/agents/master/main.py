@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import structlog
+import httpx
 
 from agent import MasterAgent
 
@@ -90,6 +91,22 @@ async def chat(request: ChatRequest):
         return result
     except Exception as e:
         logger.error("Chat failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/analytics/{endpoint:path}")
+async def get_analytics(endpoint: str):
+    """Proxy analytics requests to analytics agent"""
+    try:
+        analytics_url = os.getenv("ANALYTICS_URL", "http://analytics-agent:8004")
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{analytics_url}/api/v1/analytics/{endpoint}",
+                timeout=30.0
+            )
+            return response.json()
+    except Exception as e:
+        logger.error("Analytics request failed", error=str(e), endpoint=endpoint)
         raise HTTPException(status_code=500, detail=str(e))
 
 
