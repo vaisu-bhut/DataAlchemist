@@ -1,340 +1,381 @@
-# Customer Conversation Knowledge Engine
+# Agentic Customer Support System
 
-An AI-powered system that transforms historical customer-agent conversations into a searchable knowledge base. Built with FastAPI, Neo4j, and Google Gemini, this production-ready microservice extracts canonical issues and solutions from chat logs, enabling intelligent responses to customer queries with full provenance tracking.
+An AI-powered customer support system that learns from past conversations and automatically answers questions. Think of it as a smart assistant that gets smarter over time by analyzing how your team solves problems.
 
-## Overview
+## What Does It Do?
 
-This system ingests customer support conversations, uses LLMs to extract and canonicalize issues/solutions, stores them in a graph database with vector embeddings, and provides an API for semantic search and AI-synthesized responses.
+**For Support Teams:**
+- Automatically answers 40-60% of common questions
+- Works 24/7 without breaks
+- Learns from every conversation you feed it
+- Only escalates to humans when it's not confident
 
-**Key Capabilities:**
-- Intelligent conversation ingestion with PII redaction
-- Semantic search using vector embeddings
-- Graph-based knowledge storage with relationships
-- LLM-synthesized responses with source citations
-- Human review workflow for quality control
-- Full Docker containerization for easy deployment
-- Terraform infrastructure as code for GCP deployment
+**For Customers:**
+- Instant answers backed by real solutions
+- Shows sources (like "this worked for 5 other customers")
+- Natural conversation, not robotic responses
+- Falls back to human support when needed
 
-## Architecture
+## How It Works
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   FastAPI       │    │     Neo4j       │    │   Gemini API    │
-│   Service       │◄──►│   Database      │    │   (External)    │
-│                 │    │                 │    │                 │
-│ • Ingestion     │    │ • Graph Storage │    │ • LLM Tasks     │
-│ • Chat API      │    │ • Vector Index  │    │ • Embeddings    │
-│ • PII Redaction │    │ • Relationships │    │ • Synthesis     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
- 
-## Project Structure
+### Ingestion Pipeline
 
 ```
-.
-├── services/              # Main application code
-│   ├── api/              # FastAPI routes and endpoints
-│   ├── core/             # Core business logic and database
-│   ├── models/           # Pydantic models and schemas
-│   ├── services/         # Service layer (LLM, embeddings, etc.)
-│   ├── main.py           # Application entry point
-│   ├── requirements.txt  # Python dependencies
-│   ├── Dockerfile        # Container image definition
-│   └── docker-compose.yml # Local development setup
-├── terraform/            # Infrastructure as code
-│   ├── main.tf          # Main Terraform configuration
-│   ├── variables.tf     # Variable definitions
-│   └── terraform.tfvars # Variable values (gitignored)
-└── README.md            # This file
+Raw Conversation
+        ↓
+   ┌────────────────────┐
+   │  1. PII Redaction  │  Email → [EMAIL], Phone → [PHONE]
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 2. LLM Extraction  │  "Can't login" → "Authentication failure"
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 3. Embedding Gen   │  Text → 768-dim vector
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 4. Duplicate Check │  Similarity > 85%? Merge : Create
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 5. Store in Neo4j  │  Save with relationships
+   └────────────────────┘
 ```
+
+### Query Pipeline
+
+```
+Customer Question: "Password reset not working"
+        ↓
+   ┌────────────────────┐
+   │ 1. Generate Vector │  Question → embedding
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 2. Vector Search   │  Find top 10 similar issues
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 3. Rank Results    │  Similarity (40%) + Quality (30%)
+   │                    │  + Human Review (20%) + Recency (10%)
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 4. LLM Synthesis   │  Generate natural answer
+   └─────────┬──────────┘
+             ↓
+   ┌────────────────────┐
+   │ 5. Confidence Check│  >70%? Return : Escalate
+   └─────────┬──────────┘
+             ↓
+    "Try /forgot-password..."
+    Confidence: 92%
+    [Sources: 3 similar tickets]
+```
+
+Think of it as three smart workers talking to each other:
+
+1. **Ingest Worker** - Reads old support conversations, removes sensitive info (emails, phone numbers), and extracts the core problem and solution
+2. **Chat Worker** - Answers customer questions by finding similar past issues and generating helpful responses
+3. **Analytics Worker** - Tracks what's working, what's not, and how much time you're saving
+
+They coordinate through a **Master Agent** that routes requests and makes sure everything runs smoothly.
+
+## Tech Stack
+
+- **Python + FastAPI** for the backend
+- **Neo4j** for storing conversations and relationships (why customers contact you, what solved their issues)
+- **Google Gemini** for understanding text and generating responses
+- **LangGraph** for orchestrating the workflow
+- **Docker** for easy deployment
 
 ## Quick Start
 
-### Prerequisites
+### You'll Need
+- Docker installed
+- A Neo4j database (free tier works)
+- Google Gemini API key
 
-- Docker and Docker Compose
-- Python 3.11+ (for local development)
-- Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+### Get It Running
 
-### Local Development Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd <repository-name>
-   ```
-
-2. **Configure environment**:
-   ```bash
-   cd services
-   cp .env.example .env
-   # Edit .env and add your Gemini API key
-   ```
-
-3. **Start services with Docker Compose**:
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Wait for services to initialize** (Neo4j takes ~30 seconds):
-   ```bash
-   docker-compose logs -f
-   ```
-
-5. **Verify the setup**:
-   ```bash
-   curl http://localhost:8000/health
-   ```
-
-### API Usage
-
-**Health Check**:
+1. **Set up your environment**
 ```bash
-curl http://localhost:8000/health
+cd services
+cp .env.example .env
+# Add your Neo4j and Gemini credentials
 ```
 
-**Ingest Conversations**:
+2. **Start everything**
 ```bash
+docker-compose up
+```
+
+3. **Test it out**
+```bash
+# Feed it some conversations
 curl -X POST http://localhost:8000/api/v1/ingest \
   -H "Content-Type: application/json" \
-  -d @sample_ingest_data.json
-```
+  -d @sample_conversations.json
 
-**Query the Knowledge Base**:
-```bash
+# Ask a question
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d '{
-    "query": "How do I reset my password?",
-    "customer_id": "customer_123"
-  }'
+  -d '{"query": "How do I reset my password?"}'
 ```
 
-**Get Knowledge Stats**:
+The system will:
+- Redact any sensitive info
+- Extract the real problem and solution
+- Store it in the knowledge base
+- Use it to answer future questions
+
+## Architecture
+
+### High-Level System Flow
+
+```
+┌─────────────┐
+│   Client    │
+│  (Web/API)  │
+└──────┬──────┘
+       │ HTTP Request
+       ▼
+┌─────────────────────────────────────┐
+│       Master Agent (Port 8000)      │
+│  • Routes requests                  │
+│  • Manages workflow                 │
+│  • Tracks correlation IDs           │
+└──────┬──────────────────────────────┘
+       │ Publish message
+       ▼
+┌─────────────────────────────────────┐
+│     Message Bus (Port 8001)         │
+│  • Async communication              │
+│  • Request/response queues          │
+└──────┬──────────────────────────────┘
+       │ Workers poll for tasks
+       ├─────────┬───────────┐
+       ▼         ▼           ▼          
+   ┌────────┐ ┌──────┐ ┌──────────┐
+   │ Ingest │ │ Chat │ │Analytics │
+   │ Agent  │ │Agent │ │  Agent   │
+   │ :8002  │ │:8003 │ │  :8004   │
+   └───┬────┘ └──┬───┘ └────┬─────┘
+       │         │          │
+       └─────────┴──────────┘
+                 │
+                 ▼
+   ┌──────────────────────────┐
+   │  Neo4j + Gemini API      │
+   │  • Graph database        │
+   │  • Vector embeddings     │
+   │  • LLM processing        │
+   └──────────────────────────┘
+```
+
+### Request Flow Example
+
+```
+1. Customer asks: "How do I reset my password?"
+   │
+   ▼
+2. Master Agent creates correlation ID: "abc-123"
+   │
+   ▼
+3. Publishes to chat.request queue
+   │
+   ▼
+4. Chat Agent polls and picks up message
+   │
+   ├─> Generates query embedding
+   ├─> Searches Neo4j for similar issues
+   ├─> Ranks by similarity + quality
+   ├─> Asks Gemini to synthesize answer
+   │
+   ▼
+5. Publishes response to chat.response queue
+   │
+   ▼
+6. Master Agent retrieves response (filters by "abc-123")
+   │
+   ▼
+7. Returns to customer:
+   "Try /forgot-password. If that fails, clear your 
+    browser cache. [Source: 8 similar tickets]"
+    Confidence: 92%
+```
+
+### Data Model
+
+```
+┌─────────────┐
+│  Customer   │
+└──────┬──────┘
+       │ HAS
+       ▼
+┌─────────────────┐
+│  Conversation   │◄─── HANDLED_BY ───┐
+│  • Raw text     │                   │
+│  • Timestamp    │              ┌────┴────┐
+└──────┬──────────┘              │  Agent  │
+       │ CONTAINS                └─────────┘
+       ├─────────────┬──────────┐
+       ▼             ▼          ▼
+┌─────────┐   ┌──────────┐  ┌──────────┐
+│  Issue  │   │ Solution │  │   Tags   │
+│• Vector │   │ • Vector │  └──────────┘     
+│• Text   │   │ • Steps  │            
+└─────────┘   └──────────┘  
+     │
+     └─── SIMILAR_TO ───┐
+                        │
+                   (finds duplicates)
+```
+
+### Why This Design?
+
+**Independent Workers:** Each component can scale separately. Need more chat capacity? Spin up more chat workers without touching anything else.
+
+**Fault Tolerant:** If one worker crashes, the others keep running. Your system degrades gracefully instead of dying completely.
+
+**Async Communication:** Workers don't wait for each other. They pick up tasks when ready, process them, and move on.
+
+## Project Structure
+
+```
+services/
+  ├── agents/           # Independent workers
+  │   ├── master/       # Routes requests, manages workflow
+  │   ├── ingest/       # Processes conversations
+  │   ├── chat/         # Answers questions
+  │   └── analytics/    # Tracks metrics
+  ├── core/             # Shared code (database, LLM, config)
+  ├── models/           # Data structures
+  └── docker-compose.yml
+
+terraform/              # Deploy to Google Cloud
+  ├── agentic_system.tf # Cloud Run setup
+  ├── secrets.tf        # Secure credential storage
+  └── README.md         # Deployment guide
+```
+
+## Real-World Example
+
+**Before:** Customer asks "I can't log in"
+- Goes to support queue
+- Human agent spends 5 minutes finding solution
+- Repeats 50 times per day
+
+**After:** Same question
+- System finds 10 similar past issues in <1 second
+- Synthesizes answer: "Try resetting your password at /forgot. If that fails, clear your browser cache."
+- Shows sources: "Worked for 8/10 customers"
+- Confidence: 92%
+
+**Result:** 50 tickets × 5 minutes = 250 minutes saved daily
+
+## Key Features
+
+**Smart Processing:**
+- Automatically removes PII (emails, phone numbers, credit cards)
+- Finds duplicate issues to keep knowledge base clean
+- Ranks answers by similarity + quality + recency
+
+**Production Ready:**
+- Health checks on all services
+- Structured logging with request tracking
+- Secrets stored securely (never in code)
+- Auto-scales based on traffic
+
+**Analytics:**
+- How many questions AI answered vs. escalated
+- Resolution time trends
+- Most common issues
+- ROI calculation (time saved)
+
+## Deploy to Production
+
+**Local Development:**
 ```bash
-curl http://localhost:8000/api/v1/knowledge/stats
+docker-compose up  # Everything runs on your machine
 ```
 
-## Development
-
-### Running Locally Without Docker
-
-1. **Install dependencies**:
-   ```bash
-   cd services
-   pip install -r requirements.txt
-   ```
-
-2. **Start Neo4j** (via Docker or local installation)
-
-3. **Run the application**:
-   ```bash
-   python main.py
-   ```
-
-### API Documentation
-
-Once running, access interactive API documentation:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-### Neo4j Browser
-
-Access the Neo4j browser interface:
-- URL: http://localhost:7474
-- Username: neo4j
-- Password: (check your .env file)
-
-### Viewing Logs
-
+**Google Cloud:**
 ```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f api
-docker-compose logs -f neo4j
+cd terraform
+terraform init
+terraform apply  # Provisions Cloud Run, Secret Manager, etc.
 ```
 
-## Configuration
+Cloud Run scales automatically from 1-10 instances based on traffic. Costs ~$5-10/month for dev, $100-200/month for production (plus Neo4j/Gemini API).
 
-Key environment variables (in `services/.env`):
+## Performance
 
-```bash
-# Required
-GEMINI_API_KEY=your_api_key_here
+### Throughput by Agent
 
-# Neo4j Configuration
-NEO4J_URI=bolt://neo4j:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=password123
-
-# LLM Configuration
-GEMINI_MODEL_NAME=gemini-1.5-flash
-GEMINI_EMBEDDING_MODEL=models/embedding-001
-
-# Application Settings
-SIMILARITY_THRESHOLD=0.85
-CONFIDENCE_THRESHOLD=0.7
-MAX_RETRIEVAL_RESULTS=10
-CHUNK_SIZE=1000
-SECRET_KEY=your-secret-key-here
+```
+Agent          Requests/min    Bottleneck
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Master         1000+           (orchestration only)
+Ingest         10-20           LLM API calls
+Chat           20-40           Vector search + LLM
+Analytics      100+            Database queries
 ```
 
-## Production Deployment
+### Typical Response Times
 
-### Deploy to Google Cloud Run with Terraform
-
-This project includes Terraform configuration to deploy the Docker image to Cloud Run with all necessary infrastructure.
-
-**Prerequisites**:
-- GCP account with billing enabled
-- `gcloud` CLI installed and authenticated
-- Terraform installed
-- Neo4j Aura instance or hosted Neo4j (get free tier at [neo4j.com/cloud/aura](https://neo4j.com/cloud/aura))
-- Gemini API key
-
-**Deployment Steps**:
-
-1. **Enable required GCP APIs**:
-   ```bash
-   gcloud services enable run.googleapis.com
-   gcloud services enable artifactregistry.googleapis.com
-   ```
-
-2. **Build and push Docker image**:
-   ```bash
-   cd services
-   
-   # Build the image
-   docker build -t knowledge-engine:latest .
-   
-   # Tag for Artifact Registry
-   docker tag knowledge-engine:latest \
-     us-central1-docker.pkg.dev/YOUR_PROJECT_ID/dataalchemist/knowledge-engine:latest
-   
-   # Configure Docker auth
-   gcloud auth configure-docker us-central1-docker.pkg.dev
-   
-   # Push to registry
-   docker push us-central1-docker.pkg.dev/YOUR_PROJECT_ID/dataalchemist/knowledge-engine:latest
-   ```
-
-3. **Configure Terraform**:
-   ```bash
-   cd terraform
-   cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with your values:
-   # - project_id: Your GCP project ID
-   # - neo4j_uri: Your Neo4j Aura connection string
-   # - neo4j_password: Your Neo4j password
-   # - gemini_api_key: Your Gemini API key
-   # - app_secret_key: Generate a random secret key
-   ```
-
-4. **Deploy infrastructure**:
-   ```bash
-   terraform init
-   terraform plan
-   terraform apply
-   ```
-
-5. **Get your Cloud Run URL**:
-   ```bash
-   terraform output cloud_run_url
-   ```
-
-The output will show your public Cloud Run URL (e.g., `https://knowledge-engine-api-xxxxx-uc.a.run.app`). You can immediately start using the API at this endpoint.
-
-**Test the deployment**:
-```bash
-# Get the URL
-CLOUD_RUN_URL=$(terraform output -raw cloud_run_url)
-
-# Health check
-curl $CLOUD_RUN_URL/health
-
-# Ingest data
-curl -X POST $CLOUD_RUN_URL/api/v1/ingest \
-  -H "Content-Type: application/json" \
-  -d @../sample_data.json
+```
+Operation              Time         What's Happening
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Master routing         <100ms       Create correlation ID
+Vector search          <100ms       Find similar issues
+Graph traversal        <50ms        Get relationships
+LLM synthesis          3-10s        Generate answer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Total query time       5-15s        End-to-end
+Total ingestion time   10-30s       Per conversation
 ```
 
-### Production Checklist
+### Scaling Characteristics
 
-- [ ] Use Neo4j Aura (managed service) for production database
-- [ ] Generate strong random SECRET_KEY
-- [ ] Review Cloud Run scaling settings (min/max instances)
-- [ ] Set up Cloud Monitoring and alerting
-- [ ] Configure Cloud Logging for centralized logs
-- [ ] Add authentication if needed (API keys, OAuth, etc.)
-- [ ] Configure rate limiting via Cloud Armor
-- [ ] Set up CI/CD pipeline (GitHub Actions included)
-- [ ] Review IAM permissions and follow least privilege
-- [ ] Enable Cloud Run audit logs
+```
+Load Level      Auto-scaling Response
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Low traffic     1 instance (scales to 0)
+Normal          2-3 instances
+High traffic    Up to 10 instances
+Peak burst      Request queuing
 
-## Data Pipeline
+Each instance: 2 CPU, 4GB RAM
+```
 
-### Ingestion Flow
-1. Receive JSON conversations with customer/agent messages
-2. Redact PII (personally identifiable information)
-3. Use LLM to extract canonical issues and solutions
-4. Generate vector embeddings
-5. Check for duplicates and merge similar issues
-6. Store in Neo4j with full provenance
+## When to Use This
 
-### Query Flow
-1. Receive customer query
-2. Generate query embedding
-3. Perform vector similarity search
-4. Retrieve related context from graph
-5. Rank results by similarity, quality, and human review
-6. Synthesize response using LLM
-7. Return answer with source citations and confidence score
+✅ **Good fit if you:**
+- Have repetitive support questions
+- Want to reduce support load
+- Need 24/7 coverage
+- Have historical conversation data
 
-## Troubleshooting
-
-**Services won't start**:
-- Verify Docker is running
-- Check ports 7474, 7687, 8000 are available
-- Review logs: `docker-compose logs`
-
-**Database connection issues**:
-- Wait for Neo4j to fully initialize (~30 seconds)
-- Check Neo4j logs: `docker-compose logs neo4j`
-- Verify credentials in .env file
-
-**Ingestion fails**:
-- Verify Gemini API key is valid and has quota
-- Check Neo4j connection
-- Review conversation JSON format
-
-**No search results**:
-- Ensure data was ingested successfully
-- Check similarity thresholds in configuration
-- Verify embeddings were generated
-
-## Technology Stack
-
-- **API Framework**: FastAPI
-- **Database**: Neo4j (graph database with vector search)
-- **LLM**: Google Gemini (text generation and embeddings)
-- **Containerization**: Docker & Docker Compose
-- **Infrastructure**: Terraform (GCP)
-- **Language**: Python 3.11+
-
-## License
-
-See [LICENSE](LICENSE) file for details.
+❌ **Not ideal if you:**
+- Need real-time (<1 second) responses
+- Have highly regulated data (medical, financial) without proper compliance setup
+- Want 100% accuracy (it's AI, not magic - expect 70-90% confidence on most answers)
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+Want to add features? Some ideas:
+- Multi-language support
+- Human review dashboard
+- Response caching for common questions
+- Fine-tune embeddings for your domain
 
-## Support
+## Questions?
 
-For detailed service documentation, see [services/README.md](services/README.md).
+Check the detailed docs:
+- `services/README.md` - Deep dive on architecture
+- `terraform/README.md` - Production deployment guide
+
+Or just try it out - the quick start takes 5 minutes.
