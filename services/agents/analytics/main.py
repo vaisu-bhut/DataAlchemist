@@ -193,6 +193,38 @@ async def get_escalation_analytics():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/v1/analytics/simulate-escalations")
+async def simulate_escalations(count: int = 10):
+    """Simulate escalations by marking some conversations as escalated (for testing)"""
+    try:
+        from core.database import Neo4jConnection
+        neo4j_conn = Neo4jConnection()
+        await neo4j_conn.connect()
+        
+        # Mark first N conversations as escalated
+        query = """
+        MATCH (c:Conversation)
+        WHERE c.escalated_to_human IS NULL OR c.escalated_to_human = false
+        WITH c LIMIT $count
+        SET c.escalated_to_human = true
+        RETURN count(c) as updated
+        """
+        
+        result = await neo4j_conn.execute_query(query, {"count": count})
+        updated_count = result[0]['updated'] if result else 0
+        
+        await neo4j_conn.close()
+        
+        return {
+            "status": "success",
+            "updated_conversations": updated_count,
+            "message": f"Marked {updated_count} conversations as escalated to human"
+        }
+    except Exception as e:
+        logger.error("Failed to simulate escalations", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8004)

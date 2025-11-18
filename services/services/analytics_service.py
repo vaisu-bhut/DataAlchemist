@@ -269,21 +269,21 @@ class AnalyticsService:
         """Get analytics on human escalation vs AI resolution"""
         try:
             # Overall escalation stats
-            # Since escalated_to_human field doesn't exist, we assume:
-            # - Conversations with agent_id are handled by AI agents
-            # - Conversations without agent_id or with resolved_at = null might need human intervention
             overall_query = """
             MATCH (c:Conversation)
             WITH count(c) as total_conversations,
                  sum(CASE WHEN c.resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved_conversations,
-                 sum(CASE WHEN c.agent_id IS NOT NULL AND c.resolved_at IS NOT NULL THEN 1 ELSE 0 END) as ai_resolved_conversations,
+                 sum(CASE WHEN c.escalated_to_human = true THEN 1 ELSE 0 END) as escalated_conversations,
+                 sum(CASE WHEN c.resolved_at IS NOT NULL AND (c.escalated_to_human IS NULL OR c.escalated_to_human = false) THEN 1 ELSE 0 END) as ai_only_resolved,
                  sum(CASE WHEN c.resolved_at IS NULL THEN 1 ELSE 0 END) as unresolved_conversations
             RETURN 
                 total_conversations,
                 resolved_conversations,
-                ai_resolved_conversations,
+                escalated_conversations,
+                ai_only_resolved,
                 unresolved_conversations,
-                round(toFloat(ai_resolved_conversations) / total_conversations * 100, 2) as ai_resolution_rate,
+                round(toFloat(ai_only_resolved) / total_conversations * 100, 2) as ai_only_rate,
+                round(toFloat(escalated_conversations) / total_conversations * 100, 2) as escalation_rate,
                 round(toFloat(unresolved_conversations) / total_conversations * 100, 2) as unresolved_rate
             """
             
@@ -321,23 +321,27 @@ class AnalyticsService:
             
             # Calculate human effort saved
             total_convs = overall.get('total_conversations', 0)
-            ai_resolved = overall.get('ai_resolved_conversations', 0)
+            ai_only_resolved = overall.get('ai_only_resolved', 0)
+            escalated = overall.get('escalated_conversations', 0)
             
             # Assume average human handling time is 15 minutes per conversation
             avg_human_time_minutes = 15
-            time_saved_minutes = ai_resolved * avg_human_time_minutes
+            time_saved_minutes = ai_only_resolved * avg_human_time_minutes
             time_saved_hours = round(time_saved_minutes / 60, 2)
             
             return {
                 "summary": {
                     "total_conversations": total_convs,
-                    "resolved_by_ai_agents": ai_resolved,
+                    "resolved_by_ai_only": ai_only_resolved,
+                    "escalated_to_human": escalated,
                     "unresolved": overall.get('unresolved_conversations', 0),
-                    "ai_resolution_rate_percent": overall.get('ai_resolution_rate', 0),
+                    "ai_only_resolution_rate_percent": overall.get('ai_only_rate', 0),
+                    "escalation_rate_percent": overall.get('escalation_rate', 0),
                     "unresolved_rate_percent": overall.get('unresolved_rate', 0)
                 },
                 "human_effort_saved": {
-                    "conversations_handled_by_ai": ai_resolved,
+                    "conversations_handled_by_ai_only": ai_only_resolved,
+                    "conversations_escalated": escalated,
                     "estimated_time_saved_hours": time_saved_hours,
                     "estimated_time_saved_days": round(time_saved_hours / 8, 2),
                     "assumption": f"Based on {avg_human_time_minutes} minutes average human handling time per conversation"

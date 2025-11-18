@@ -131,12 +131,18 @@ async def process_request(message: dict):
             context=None
         )
         
+        # Check if escalation is needed based on confidence threshold (0.7)
+        confidence = result.get("confidence", 0.0)
+        escalate = result.get("escalate_to_human", False) or confidence < 0.7
+        
         # Publish response
         response_message = {
             "correlation_id": correlation_id,
             "answer": result.get("response", "I couldn't find a relevant answer."),
             "sources": result.get("sources", []),
-            "confidence": result.get("confidence", 0.0)
+            "confidence": confidence,
+            "escalate_to_human": escalate,
+            "reasoning": result.get("reasoning") if escalate else None
         }
         
         async with httpx.AsyncClient() as client:
@@ -148,7 +154,8 @@ async def process_request(message: dict):
         
         logger.info("Chat completed", 
                    correlation_id=correlation_id,
-                   confidence=result.get("confidence", 0.0))
+                   confidence=confidence,
+                   escalate_to_human=escalate)
         
     except Exception as e:
         logger.error("Processing failed", 
@@ -158,9 +165,11 @@ async def process_request(message: dict):
         # Publish error response
         error_message = {
             "correlation_id": correlation_id,
-            "answer": "I encountered an error processing your request.",
+            "answer": "I encountered an error processing your request. Please contact a human agent.",
             "sources": [],
-            "confidence": 0.0
+            "confidence": 0.0,
+            "escalate_to_human": True,
+            "reasoning": "Error during processing"
         }
         
         async with httpx.AsyncClient() as client:
