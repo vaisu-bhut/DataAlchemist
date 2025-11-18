@@ -20,6 +20,7 @@ class WorkflowState(TypedDict):
     status: str
     result: Optional[Dict[str, Any]]
     error: Optional[str]
+    _polling_task: Optional[Any]
 
 
 class MasterAgent:
@@ -54,6 +55,22 @@ class MasterAgent:
         
         logger.info("Routing request", type=request_type, correlation_id=correlation_id)
         
+        # Create a result container that can be shared
+        result_container = {"result": None, "status": "pending"}
+        
+        # Start polling task BEFORE publishing request
+        response_topic = f"{request_type}.response"
+        state["_polling_task"] = asyncio.create_task(
+            self._poll_for_response(correlation_id, response_topic, result_container)
+        )
+        
+        # Store result container reference
+        self.pending_requests[correlation_id] = result_container
+        
+        # Small delay to ensure polling starts
+        await asyncio.sleep(0.1)
+        
+        # Now publish the request
         topic = f"{request_type}.request"
         message = {
             "correlation_id": correlation_id,
@@ -67,26 +84,26 @@ class MasterAgent:
                 timeout=5.0
             )
         
+        logger.info("Request published, polling started", correlation_id=correlation_id)
         state["status"] = "processing"
         return state
         
-    async def _wait_for_response(self, state: WorkflowState) -> WorkflowState:
-        """Wait for agent response"""
-        correlation_id = state["correlation_id"]
-        request_type = state["request_type"]
-        response_topic = f"{request_type}.response"
-        
-        logger.info("Waiting for response", correlation_id=correlation_id)
-        
-        # Poll for response with timeout (increased for LLM processing)
-        start_time = asyncio.get_event_loop().time()
-        timeout = 300.0  # 3 minutes for LLM processing
+    async def _poll_for_response(self, correlation_id: str, response_topic: str, result_container: dict):
+        """Background task to peek for response (doesn't remove until acknowledged)"""
+        logger.info("Starting background peeking", correlation_id=correlation_id, topic=response_topic)
         
         async with httpx.AsyncClient() as client:
-            while (asyncio.get_event_loop().time() - start_time) < timeout:
+            poll_count = 0
+            while True:
                 try:
+                    poll_count += 1
+                    if poll_count % 10 == 0:
+                        logger.debug(f"Peek attempt {poll_count}", correlation_id=correlation_id)
+                    
+                    # Use peek with correlation_id filter
                     response = await client.get(
-                        f"{self.pubsub_url}/poll/{response_topic}",
+                        f"{self.pubsub_url}/peek/{response_topic}",
+                        params={"correlation_id": correlation_id},
                         timeout=5.0
                     )
                     
@@ -95,33 +112,88 @@ class MasterAgent:
                         message = data.get("message")
                         
                         if message:
-                            msg_corr_id = message.get("correlation_id")
-                            logger.info("Received message from pubsub", 
-                                       expected_correlation_id=correlation_id,
-                                       received_correlation_id=msg_corr_id,
+                            logger.info("📨 Found message via peek", 
+                                       correlation_id=correlation_id,
                                        message_keys=list(message.keys()))
-                            if msg_corr_id == correlation_id:
-                                state["result"] = message
-                                state["status"] = "completed"
-                                logger.info("✅ Response matched!", correlation_id=correlation_id)
-                                return state
+                            
+                            # Acknowledge to remove the message
+                            ack_response = await client.post(
+                                f"{self.pubsub_url}/acknowledge",
+                                json={"topic": response_topic, "correlation_id": correlation_id},
+                                timeout=5.0
+                            )
+                            
+                            if ack_response.status_code == 200:
+                                logger.info("✅ Message acknowledged and removed", correlation_id=correlation_id)
+                                # Update the shared result container
+                                result_container["result"] = message
+                                result_container["status"] = "completed"
+                                return
                             else:
-                                logger.warning("❌ Correlation ID mismatch - discarding message", 
-                                           expected=correlation_id, 
-                                           received=msg_corr_id)
-                        else:
-                            logger.debug("No message in poll response")
+                                logger.warning("Failed to acknowledge message", correlation_id=correlation_id)
                     
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.1)  # Fast polling
                     
+                except asyncio.CancelledError:
+                    logger.info("Polling cancelled", correlation_id=correlation_id)
+                    return
                 except Exception as e:
-                    logger.error("Polling error", error=str(e))
+                    logger.error("Polling error", 
+                                error=str(e), 
+                                error_type=type(e).__name__,
+                                correlation_id=correlation_id)
                     await asyncio.sleep(1)
+    
+    async def _wait_for_response(self, state: WorkflowState) -> WorkflowState:
+        """Wait for the polling task to complete"""
+        correlation_id = state["correlation_id"]
         
-        # Timeout
-        state["error"] = "Request timeout"
-        state["status"] = "failed"
-        logger.error("Request timeout", correlation_id=correlation_id)
+        logger.info("Waiting for response", correlation_id=correlation_id)
+        
+        polling_task = state.get("_polling_task")
+        if not polling_task:
+            state["error"] = "No polling task found"
+            state["status"] = "failed"
+            return state
+        
+        # Get the result container
+        result_container = self.pending_requests.get(correlation_id)
+        if not result_container:
+            state["error"] = "No result container found"
+            state["status"] = "failed"
+            return state
+        
+        try:
+            # Wait for polling task with timeout
+            await asyncio.wait_for(polling_task, timeout=300.0)
+            
+            # Get result from the container
+            if result_container["status"] == "completed" and result_container["result"]:
+                state["result"] = result_container["result"]
+                state["status"] = "completed"
+                logger.info("✅ Response received successfully", correlation_id=correlation_id)
+            else:
+                state["error"] = "Polling completed but no response"
+                state["status"] = "failed"
+                logger.error("❌ No result in container after polling", 
+                           correlation_id=correlation_id,
+                           container_status=result_container["status"])
+                
+        except asyncio.TimeoutError:
+            polling_task.cancel()
+            state["error"] = "Request timeout"
+            state["status"] = "failed"
+            logger.error("⏱️ Request timeout", correlation_id=correlation_id)
+        except Exception as e:
+            polling_task.cancel()
+            state["error"] = str(e)
+            state["status"] = "failed"
+            logger.error("❌ Wait failed", error=str(e), correlation_id=correlation_id)
+        finally:
+            # Cleanup
+            if correlation_id in self.pending_requests:
+                del self.pending_requests[correlation_id]
+        
         return state
         
     async def _complete_request(self, state: WorkflowState) -> WorkflowState:
@@ -141,7 +213,8 @@ class MasterAgent:
             input_data=input_data,
             status="pending",
             result=None,
-            error=None
+            error=None,
+            _polling_task=None
         )
         
         # Run through LangGraph workflow

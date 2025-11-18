@@ -47,6 +47,8 @@ class Neo4jConnection:
             # Wait for Neo4j to be fully ready
             await self._wait_for_database_ready(session)
             
+            logger.info("Initializing database schema...")
+            
             # Create constraints
             constraints = [
                 "CREATE CONSTRAINT conversation_id IF NOT EXISTS FOR (c:Conversation) REQUIRE c.id IS UNIQUE",
@@ -56,41 +58,69 @@ class Neo4jConnection:
                 "CREATE CONSTRAINT agent_id IF NOT EXISTS FOR (a:Agent) REQUIRE a.id IS UNIQUE"
             ]
             
+            constraints_created = 0
             for constraint in constraints:
                 try:
                     await session.run(constraint)
-                    logger.debug(f"Created constraint: {constraint}")
+                    constraints_created += 1
+                    logger.info(f"✅ Created constraint: {constraint.split('FOR')[1].split('REQUIRE')[0].strip()}")
                 except Exception as e:
-                    logger.warning(f"Constraint creation failed (may already exist): {e}")
+                    # Check if it's because constraint already exists
+                    if "already exists" in str(e).lower() or "equivalent" in str(e).lower():
+                        logger.debug(f"Constraint already exists (OK)")
+                    else:
+                        logger.warning(f"Constraint creation failed: {e}")
+            
+            logger.info(f"Constraints ready: {constraints_created} created/verified")
             
             # Create vector indexes for embeddings
             vector_indexes = [
-                """
+                ("issue_embeddings", """
                 CREATE VECTOR INDEX issue_embeddings IF NOT EXISTS
                 FOR (i:Issue) ON (i.embedding)
                 OPTIONS {indexConfig: {
                     `vector.dimensions`: 768,
                     `vector.similarity_function`: 'cosine'
                 }}
-                """,
-                """
+                """),
+                ("solution_embeddings", """
                 CREATE VECTOR INDEX solution_embeddings IF NOT EXISTS  
                 FOR (s:Solution) ON (s.embedding)
                 OPTIONS {indexConfig: {
                     `vector.dimensions`: 768,
                     `vector.similarity_function`: 'cosine'
                 }}
-                """
+                """)
             ]
             
-            for index in vector_indexes:
-                try:
-                    await session.run(index)
-                    logger.debug(f"Created vector index")
-                except Exception as e:
-                    logger.warning(f"Vector index creation failed (may already exist): {e}")
+            vector_indexes_created = 0
+            vector_indexes_supported = True
             
-            logger.info("Database schema initialized")
+            for index_name, index_query in vector_indexes:
+                try:
+                    await session.run(index_query)
+                    vector_indexes_created += 1
+                    logger.info(f"✅ Created vector index: {index_name}")
+                except Exception as e:
+                    error_str = str(e).lower()
+                    if "already exists" in error_str or "equivalent" in error_str:
+                        logger.debug(f"Vector index {index_name} already exists (OK)")
+                        vector_indexes_created += 1
+                    elif "unknown command" in error_str or "no procedure" in error_str:
+                        vector_indexes_supported = False
+                        logger.warning(f"⚠️  Vector indexes not supported by this Neo4j version")
+                        logger.warning(f"   Ingestion will work but without similarity deduplication")
+                        break
+                    else:
+                        logger.error(f"❌ Vector index creation failed for {index_name}: {e}")
+            
+            if vector_indexes_supported:
+                logger.info(f"✅ Vector indexes ready: {vector_indexes_created}/2")
+            else:
+                logger.warning("⚠️  Vector indexes not available - requires Neo4j 5.11+")
+                logger.warning("   System will work but without vector similarity search")
+            
+            logger.info("✅ Database schema initialization complete")
     
     async def _wait_for_database_ready(self, session, max_retries: int = 10):
         """Wait for Neo4j database to be fully ready"""

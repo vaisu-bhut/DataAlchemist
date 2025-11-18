@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir \
 
 # Copy service code
 COPY pubsub/main.py .
+COPY pubsub/service.py .
 
 EXPOSE 8001
 

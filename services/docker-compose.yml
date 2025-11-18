@@ -9,7 +9,7 @@ services:
     networks:
       - agent-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -24,6 +24,7 @@ services:
       - "8000:8000"
     environment:
       - PUBSUB_URL=http://pubsub:8001
+      - ANALYTICS_URL=http://analytics-agent:8004
     env_file:
       - .env
     depends_on:
@@ -32,7 +33,7 @@ services:
     networks:
       - agent-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -83,6 +84,28 @@ services:
       timeout: 5s
       retries: 3
     restart: unless-stopped
+
+  analytics-agent:
+    build:
+      context: .
+      dockerfile: agents/analytics/Dockerfile
+    container_name: analytics-agent
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env
+    depends_on:
+      pubsub:
+        condition: service_healthy
+    networks:
+      - agent-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
 
 networks:
   agent-network:

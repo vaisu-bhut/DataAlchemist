@@ -1,7 +1,5 @@
 name: Deploy Agentic Workflow to Cloud Run
 
-# Triggers on merge to main/staging - rebuilds and deploys all 4 services
-# Each service gets a new Docker image with the commit SHA tag
 on:
   push:
     branches: [main, staging]
@@ -88,6 +86,7 @@ jobs:
     name: Deploy Unified Container to Cloud Run
     runs-on: ubuntu-latest
     needs: build-and-push
+    if: github.ref == 'refs/heads/main'
     
     permissions:
       contents: read
@@ -166,24 +165,3 @@ jobs:
           echo "🔍 Testing Ingest Agent (internal port 8002)..."
           echo "🔍 Testing Chat Agent (internal port 8003)..."
           echo "   (Internal services communicate via localhost within container)"
-      
-      - name: Deployment Summary
-        run: |
-          echo "🎉 Deployment Complete!"
-          echo ""
-          echo "📦 Image Tag: ${{ needs.build-and-push.outputs.image_tag }}"
-          echo "🔗 Service URL: ${{ steps.url.outputs.service_url }}"
-          echo ""
-          echo "✅ Zero-downtime deployment successful"
-          echo "   - New revision deployed with --no-traffic"
-          echo "   - Traffic gradually shifted to new revision"
-          echo "   - Old revision kept running during transition"
-          echo ""
-          echo "📦 Single unified container running all 4 services:"
-          echo "   1. Pub/Sub (internal port 8001)"
-          echo "   2. Master Agent (exposed port 8000)"
-          echo "   3. Ingest Agent (internal port 8002)"
-          echo "   4. Chat Agent (internal port 8003)"
-          echo ""
-          echo "🔧 Services communicate via localhost within the container"
-          echo "🌐 External access via Master Agent: ${{ steps.url.outputs.service_url }}"
