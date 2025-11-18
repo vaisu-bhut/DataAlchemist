@@ -71,7 +71,10 @@ async def root():
         "endpoints": [
             "/api/v1/analytics/summary",
             "/api/v1/analytics/issues/distribution",
-            "/api/v1/analytics/agents/performance"
+            "/api/v1/analytics/agents/performance",
+            "/api/v1/analytics/customers",
+            "/api/v1/analytics/customers/{customer_id}/issues",
+            "/api/v1/analytics/resolution-time"
         ]
     }
 
@@ -137,6 +140,44 @@ async def get_agent_performance(
         }
     except Exception as e:
         logger.error("Failed to get agent performance", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/analytics/customers")
+async def get_customers_list(
+    limit: int = Query(default=20, ge=1, le=100, description="Number of customers to return")
+):
+    """Get list of customers with their conversation counts"""
+    try:
+        customers = await analytics_service.get_customers_list(limit=limit)
+        return {
+            "total": len(customers),
+            "customers": customers
+        }
+    except Exception as e:
+        logger.error("Failed to get customers list", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/analytics/customers/{customer_id}/issues")
+async def get_customer_issue_history(customer_id: str):
+    """Get all issues a specific customer has encountered"""
+    try:
+        history = await analytics_service.get_customer_issue_history(customer_id)
+        return history
+    except Exception as e:
+        logger.error("Failed to get customer issue history", error=str(e), customer_id=customer_id)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/analytics/resolution-time")
+async def get_resolution_time_stats():
+    """Get resolution time statistics by issue type"""
+    try:
+        stats = await analytics_service.get_resolution_time_stats()
+        return stats
+    except Exception as e:
+        logger.error("Failed to get resolution time stats", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -121,6 +121,150 @@ class AnalyticsService:
             logger.error("Failed to get issue distribution", error=str(e))
             raise
     
+    async def get_customers_list(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Get list of customers with their conversation counts"""
+        try:
+            query = """
+            MATCH (c:Conversation)-[:BELONGS_TO]->(cust:Customer)
+            WITH cust, count(c) as total_conversations,
+                 sum(CASE WHEN c.resolved_at IS NOT NULL THEN 1 ELSE 0 END) as resolved_conversations
+            RETURN 
+                cust.id as customer_id,
+                total_conversations,
+                resolved_conversations
+            ORDER BY total_conversations DESC
+            LIMIT $limit
+            """
+            
+            results = await self.db.execute_query(query, {"limit": limit})
+            
+            return [
+                {
+                    "customer_id": r['customer_id'],
+                    "total_conversations": r['total_conversations'],
+                    "resolved_conversations": r['resolved_conversations']
+                }
+                for r in results
+            ]
+            
+        except Exception as e:
+            logger.error("Failed to get customers list", error=str(e))
+            raise
+    
+    async def get_customer_issue_history(self, customer_id: str) -> Dict[str, Any]:
+        """Get all issues a specific customer has encountered"""
+        try:
+            query = """
+            MATCH (c:Conversation)-[:BELONGS_TO]->(cust:Customer {id: $customer_id})
+            MATCH (c)-[:CONTAINS_ISSUE]->(i:Issue)
+            OPTIONAL MATCH (c)-[:HANDLED_BY]->(a:Agent)
+            RETURN 
+                i.id as issue_id,
+                i.one_liner as issue_description,
+                c.id as conversation_id,
+                c.created_at as occurred_at,
+                c.resolved_at as resolved_at,
+                a.id as handled_by_agent
+            ORDER BY c.created_at DESC
+            """
+            
+            results = await self.db.execute_query(query, {"customer_id": customer_id})
+            
+            issues = []
+            for r in results:
+                occurred = r.get('occurred_at')
+                if occurred and hasattr(occurred, 'to_native'):
+                    occurred = occurred.to_native()
+                
+                resolved = r.get('resolved_at')
+                if resolved and hasattr(resolved, 'to_native'):
+                    resolved = resolved.to_native()
+                
+                issues.append({
+                    "issue_id": r['issue_id'],
+                    "issue_description": r['issue_description'],
+                    "conversation_id": r['conversation_id'],
+                    "occurred_at": occurred,
+                    "resolved_at": resolved,
+                    "handled_by_agent": r.get('handled_by_agent'),
+                    "status": "resolved" if resolved else "open"
+                })
+            
+            return {
+                "customer_id": customer_id,
+                "total_issues": len(issues),
+                "issues": issues
+            }
+            
+        except Exception as e:
+            logger.error("Failed to get customer issue history", error=str(e), customer_id=customer_id)
+            raise
+    
+    async def get_resolution_time_stats(self) -> Dict[str, Any]:
+        """Get resolution time statistics by issue type"""
+        try:
+            query = """
+            MATCH (c:Conversation)-[:CONTAINS_ISSUE]->(i:Issue)
+            WHERE c.created_at IS NOT NULL AND c.resolved_at IS NOT NULL
+            WITH i, c,
+                 duration.inSeconds(c.created_at, c.resolved_at).minutes as resolution_minutes
+            WHERE resolution_minutes IS NOT NULL
+            WITH i.one_liner as issue_description,
+                 count(c) as occurrences,
+                 avg(resolution_minutes) as avg_minutes,
+                 min(resolution_minutes) as min_minutes,
+                 max(resolution_minutes) as max_minutes
+            RETURN 
+                issue_description,
+                occurrences,
+                round(avg_minutes, 2) as avg_resolution_minutes,
+                round(min_minutes, 2) as min_resolution_minutes,
+                round(max_minutes, 2) as max_resolution_minutes
+            ORDER BY avg_minutes DESC
+            """
+            
+            results = await self.db.execute_query(query)
+            
+            stats = []
+            for r in results:
+                stats.append({
+                    "issue_description": r['issue_description'],
+                    "occurrences": r['occurrences'],
+                    "avg_resolution_minutes": r['avg_resolution_minutes'],
+                    "min_resolution_minutes": r['min_resolution_minutes'],
+                    "max_resolution_minutes": r['max_resolution_minutes']
+                })
+            
+            # Calculate overall stats
+            overall_query = """
+            MATCH (c:Conversation)
+            WHERE c.created_at IS NOT NULL AND c.resolved_at IS NOT NULL
+            WITH duration.inSeconds(c.created_at, c.resolved_at).minutes as resolution_minutes
+            WHERE resolution_minutes IS NOT NULL
+            RETURN 
+                count(*) as total_resolved,
+                round(avg(resolution_minutes), 2) as overall_avg_minutes,
+                round(min(resolution_minutes), 2) as overall_min_minutes,
+                round(max(resolution_minutes), 2) as overall_max_minutes
+            """
+            
+            overall_results = await self.db.execute_query(overall_query)
+            overall = overall_results[0] if overall_results else {}
+            
+            return {
+                "overall_stats": {
+                    "total_resolved_conversations": overall.get('total_resolved', 0),
+                    "avg_resolution_minutes": overall.get('overall_avg_minutes', 0),
+                    "min_resolution_minutes": overall.get('overall_min_minutes', 0),
+                    "max_resolution_minutes": overall.get('overall_max_minutes', 0)
+                },
+                "by_issue_type": stats
+            }
+            
+        except Exception as e:
+            logger.error("Failed to get resolution time stats", error=str(e))
+            raise
+    
     async def get_agent_performance(self, limit: int = 10) -> List[AgentPerformance]:
         """Get agent performance metrics"""
         try:
