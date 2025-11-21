@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DataAlchemist - Customer Conversation Knowledge Engine",
-  description: "AI-powered knowledge engine that converts customer chat logs into searchable, intelligent responses. Transform your customer conversations into actionable knowledge.",
-  keywords: "AI, customer service, knowledge base, chat logs, machine learning, FastAPI",
+  title: "Agentic Workflow System - Multi-Agent Architecture",
+  description: "Production-ready multi-agent system for intelligent customer support using autonomous agents, LangGraph orchestration, Neo4j graph database, and Google Gemini AI.",
+  keywords: "multi-agent system, agentic architecture, LangGraph, Neo4j, FastAPI, microservices, pub/sub, vector search",
 };
 
 export default function RootLayout({

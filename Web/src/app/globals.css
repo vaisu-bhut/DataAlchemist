@@ -1,26 +1,554 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --teal-50: #f0fdfa;
+  --teal-100: #ccfbf1;
+  --teal-200: #99f6e4;
+  --teal-300: #5eead4;
+  --teal-400: #2dd4bf;
+  --teal-500: #14b8a6;
+  --teal-600: #0d9488;
+  --teal-700: #0f766e;
+  --teal-800: #115e59;
+  --teal-900: #134e4a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: #f9fafb;
+  color: #111827;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Custom Animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes flowRight {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes flowDown {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes flowUp {
+  0% {
+    bottom: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    bottom: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 6s ease-in-out 2s infinite;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.8s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 1s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.6s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.5s ease-out forwards;
+}
+
+.animate-flow-right {
+  animation: flowRight 3s ease-in-out infinite;
+}
+
+.animate-flow-right-delayed {
+  animation: flowRight 3s ease-in-out 1s infinite;
+}
+
+.animate-flow-right-delayed-2 {
+  animation: flowRight 3s ease-in-out 2s infinite;
+}
+
+.animate-flow-down {
+  animation: flowDown 2s ease-in-out infinite;
+}
+
+.animate-flow-down-delayed {
+  animation: flowDown 2s ease-in-out 0.5s infinite;
+}
+
+.animate-flow-down-delayed-2 {
+  animation: flowDown 2s ease-in-out 1s infinite;
+}
+
+.animate-flow-up {
+  animation: flowUp 2s ease-in-out 0.5s infinite;
+}
+
+.animate-flow-up-delayed {
+  animation: flowUp 2s ease-in-out 1s infinite;
+}
+
+@keyframes flowDiagonal1 {
+  0% {
+    top: 0%;
+    left: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    left: 50%;
+    opacity: 0;
+  }
+}
+
+@keyframes flowDiagonal2 {
+  0% {
+    top: 0%;
+    right: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    right: 50%;
+    opacity: 0;
+  }
+}
+
+@keyframes flowCurveRight {
+  0% {
+    left: 10%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    left: 50%;
+    top: 50%;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 90%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes flowCurveLeft {
+  0% {
+    left: 90%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    left: 50%;
+    top: 50%;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 10%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Diagonal animations for converging paths */
+@keyframes diagonalLeft {
+  0% {
+    left: 25%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes diagonalRight {
+  0% {
+    left: 75%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Straight flow animation */
+@keyframes flowStraight {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* T-junction branch animations */
+@keyframes branchLeft {
+  0% {
+    left: 50%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  25% {
+    left: 50%;
+    top: 30%;
+  }
+  30% {
+    left: 15%;
+    top: 30%;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 15%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes branchCenter {
+  0% {
+    left: 50%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes branchRight {
+  0% {
+    left: 50%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  25% {
+    left: 50%;
+    top: 30%;
+  }
+  30% {
+    left: 85%;
+    top: 30%;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 85%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Converging animations */
+@keyframes convergeLeft {
+  0% {
+    left: 15%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes convergeCenter {
+  0% {
+    left: 50%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes convergeRight {
+  0% {
+    left: 85%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Return path animations */
+@keyframes returnLeft {
+  0% {
+    left: 50%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 50%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes returnRight {
+  0% {
+    left: 50%;
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    left: 85%;
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+/* Animation classes */
+.animate-diagonal-left {
+  animation: diagonalLeft 3s ease-in-out infinite;
+}
+
+.animate-diagonal-right {
+  animation: diagonalRight 3s ease-in-out 0.5s infinite;
+}
+
+.animate-flow-straight {
+  animation: flowStraight 2.5s ease-in-out infinite;
+}
+
+.animate-branch-left {
+  animation: branchLeft 3.5s ease-in-out infinite;
+}
+
+.animate-branch-center {
+  animation: branchCenter 3.5s ease-in-out 0.5s infinite;
+}
+
+.animate-branch-right {
+  animation: branchRight 3.5s ease-in-out 1s infinite;
+}
+
+.animate-converge-left {
+  animation: convergeLeft 3s ease-in-out infinite;
+}
+
+.animate-converge-center {
+  animation: convergeCenter 3s ease-in-out 0.5s infinite;
+}
+
+.animate-converge-right {
+  animation: convergeRight 3s ease-in-out 1s infinite;
+}
+
+.animate-return-left {
+  animation: returnLeft 3s ease-in-out 0.5s infinite;
+}
+
+.animate-return-right {
+  animation: returnRight 3s ease-in-out 1s infinite;
 }
