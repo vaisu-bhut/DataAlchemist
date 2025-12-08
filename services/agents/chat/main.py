@@ -48,15 +48,15 @@ async def lifespan(app: FastAPI):
     
     # Connect to Neo4j with retries (but don't fail startup)
     neo4j_conn = Neo4jConnection()
-    for attempt in range(3):
+    for attempt in range(10):  # Increased from 3
         try:
             await neo4j_conn.connect()
             logger.info("✅ Connected to Neo4j")
             break
         except Exception as e:
             logger.warning(f"⚠️  Neo4j connection attempt {attempt + 1} failed: {e}")
-            if attempt < 2:
-                await asyncio.sleep(3)
+            if attempt < 9:
+                await asyncio.sleep(5)  # Increased from 3
             else:
                 logger.error("❌ Failed to connect to Neo4j after 3 attempts - service will start but may not process requests")
                 # Don't raise - let service start anyway
@@ -124,6 +124,10 @@ async def process_request(message: dict):
     customer_id = message.get("customer_id", "anonymous")
     
     try:
+        if not retrieval_service:
+            logger.error("Retrieval service not initialized - cannot process request")
+            raise RuntimeError("Database connection not available")
+
         # Retrieve and generate response
         result = await retrieval_service.retrieve_and_respond(
             query=query,

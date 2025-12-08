@@ -5,7 +5,8 @@ resource "google_project_service" "run" {
 }
 
 resource "google_project_service" "secretmanager" {
-  service = "secretmanager.googleapis.com"
+  service                    = "secretmanager.googleapis.com"
+  disable_dependent_services = true
 }
 
 resource "google_project_service" "artifactregistry" {
