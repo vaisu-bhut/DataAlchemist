@@ -1,6 +1,7 @@
 """
 Helper to load and parse JSON secrets from environment variables
 """
+
 import os
 import json
 import logging
@@ -24,15 +25,19 @@ def load_secrets():
             logger.info("✅ Database credentials loaded from JSON secret")
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse DATABASE_CREDENTIALS JSON: {e}")
-    
+
     # Load API keys
     api_keys_json = os.getenv("API_KEYS")
     if api_keys_json:
         try:
             api_keys = json.loads(api_keys_json)
             os.environ["GEMINI_API_KEY"] = api_keys.get("gemini_api_key", "")
-            os.environ["GEMINI_MODEL_NAME"] = api_keys.get("gemini_model_name", "gemini-2.5-pro")
-            os.environ["GEMINI_EMBEDDING_MODEL"] = api_keys.get("gemini_embedding_model", "models/text-embedding-004")
+            os.environ["GEMINI_MODEL_NAME"] = api_keys.get(
+                "gemini_model_name", "gemini-2.5-flash"
+            )
+            os.environ["GEMINI_EMBEDDING_MODEL"] = api_keys.get(
+                "gemini_embedding_model", "models/text-embedding-004"
+            )
             os.environ["SECRET_KEY"] = api_keys.get("app_secret_key", "")
             logger.info("✅ API keys loaded from JSON secret")
         except json.JSONDecodeError as e:
