@@ -14,6 +14,34 @@ class GeminiService:
         self.model = genai.GenerativeModel(settings.gemini_model_name)
         self.embedding_model = settings.gemini_embedding_model
 
+    async def check_general_chat(self, query: str) -> Optional[str]:
+        """
+        Check if the query is a simple greeting/pleasantry.
+        Returns the response string if it is a greeting, or None if search is required.
+        """
+        prompt = f"""
+        You are a helpful customer support AI.
+        Analyze this user message: "{query}"
+        
+        Is this a simple greeting, pleasantry, expression of gratitude, or closing (e.g. 'hello', 'hi', 'hii', 'hey', 'thanks', 'good morning', 'bye', 'ok') that does NOT require searching a knowledge base?
+        
+        - If YES (it's just chat): Reply with a polite, friendly, and brief response suitable for a support agent.
+        - If NO (it's a question or issue): Respond with exactly "SEARCH_REQUIRED".
+        
+        Do not provide any other text, just the response or "SEARCH_REQUIRED".
+        """
+
+        try:
+            response = self.model.generate_content(prompt)
+            text = response.text.strip()
+
+            if "SEARCH_REQUIRED" in text:
+                return None
+            return text
+        except Exception as e:
+            logger.error(f"General chat check failed: {e}")
+            return None
+
     async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for text using Gemini"""
         try:
@@ -94,12 +122,11 @@ class GeminiService:
         You are a customer support AI. Based on the retrieved knowledge below, provide a helpful response to the customer query.
         
         REQUIREMENTS:
-        1. STRUCTURE THE RESPONSE AS STEP-BY-STEP INSTRUCTIONS if relevant context exists.
+        1. STRUCTURE THE RESPONSE AS DETAILED STEP-BY-STEP INSTRUCTIONS if relevant context exists. If the retrieved steps are brief, present them clearly as steps.
         2. Always cite sources using [Source X] format.
         3. Provide a confidence score (0-1).
-        4. If the retrieved knowledge is NOT relevant or insufficient to answer the query, set "escalate_to_human" to true and provide a polite message connecting them to a human.
-        5. Never hallucinate - only use provided information.
-        6. Be concise but complete.
+        4. Never hallucinate - only use provided information.
+        5. Be concise but complete.
         
         Customer Query: {query}
         
@@ -108,10 +135,9 @@ class GeminiService:
         
         Return JSON response:
         {{
-            "response": "Step-by-step instructions with [Source X] citations OR a message connecting to a human",
+            "response": "Detailed step-by-step instructions with [Source X] citations",
             "confidence": 0.85,
             "source_ids": ["id1", "id2"],
-            "escalate_to_human": false,
             "reasoning": "Brief explanation of confidence level"
         }}
         """
