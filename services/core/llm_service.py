@@ -7,25 +7,24 @@ from core.config import settings
 
 logger = structlog.get_logger()
 
+
 class GeminiService:
     def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
         self.model = genai.GenerativeModel(settings.gemini_model_name)
         self.embedding_model = settings.gemini_embedding_model
-    
+
     async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for text using Gemini"""
         try:
             result = genai.embed_content(
-                model=self.embedding_model,
-                content=text,
-                task_type="retrieval_document"
+                model=self.embedding_model, content=text, task_type="retrieval_document"
             )
-            return result['embedding']
+            return result["embedding"]
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
             raise
-    
+
     async def extract_canonical_data(self, conversation_text: str) -> Dict[str, Any]:
         """Extract canonical issues and solutions from conversation"""
         prompt = f"""
@@ -62,37 +61,45 @@ class GeminiService:
         Conversation:
         {conversation_text}
         """
-        
+
         try:
             response = self.model.generate_content(prompt)
             # Extract JSON from response
-            json_start = response.text.find('{')
-            json_end = response.text.rfind('}') + 1
+            json_start = response.text.find("{")
+            json_end = response.text.rfind("}") + 1
             json_str = response.text[json_start:json_end]
             return json.loads(json_str)
         except Exception as e:
             logger.error(f"Canonical data extraction failed: {e}")
             raise
-    
-    async def synthesize_response(self, query: str, candidates: List[Dict], customer_context: Optional[Dict] = None) -> Dict[str, Any]:
+
+    async def synthesize_response(
+        self,
+        query: str,
+        candidates: List[Dict],
+        customer_context: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
         """Synthesize response from retrieved candidates"""
-        candidates_text = "\n\n".join([
-            f"Source {i+1} (ID: {c.get('source_id', 'unknown')}):\n"
-            f"Issue: {c.get('issue', '')}\n"
-            f"Solution: {c.get('solution', '')}\n"
-            f"Quality Score: {c.get('quality_score', 0)}"
-            for i, c in enumerate(candidates)
-        ])
-        
+        candidates_text = "\n\n".join(
+            [
+                f"Source {i + 1} (ID: {c.get('source_id', 'unknown')}):\n"
+                f"Issue: {c.get('issue', '')}\n"
+                f"Solution: {c.get('solution', '')}\n"
+                f"Quality Score: {c.get('quality_score', 0)}"
+                for i, c in enumerate(candidates)
+            ]
+        )
+
         prompt = f"""
         You are a customer support AI. Based on the retrieved knowledge below, provide a helpful response to the customer query.
         
         REQUIREMENTS:
-        1. Always cite sources using [Source X] format
-        2. Provide a confidence score (0-1)
-        3. If confidence < 0.7, suggest human escalation
-        4. Never hallucinate - only use provided information
-        5. Be concise but complete
+        1. STRUCTURE THE RESPONSE AS STEP-BY-STEP INSTRUCTIONS if relevant context exists.
+        2. Always cite sources using [Source X] format.
+        3. Provide a confidence score (0-1).
+        4. If the retrieved knowledge is NOT relevant or insufficient to answer the query, set "escalate_to_human" to true and provide a polite message connecting them to a human.
+        5. Never hallucinate - only use provided information.
+        6. Be concise but complete.
         
         Customer Query: {query}
         
@@ -101,24 +108,24 @@ class GeminiService:
         
         Return JSON response:
         {{
-            "response": "Your helpful response with [Source X] citations",
+            "response": "Step-by-step instructions with [Source X] citations OR a message connecting to a human",
             "confidence": 0.85,
             "source_ids": ["id1", "id2"],
             "escalate_to_human": false,
             "reasoning": "Brief explanation of confidence level"
         }}
         """
-        
+
         try:
             response = self.model.generate_content(prompt)
-            json_start = response.text.find('{')
-            json_end = response.text.rfind('}') + 1
+            json_start = response.text.find("{")
+            json_end = response.text.rfind("}") + 1
             json_str = response.text[json_start:json_end]
             return json.loads(json_str)
         except Exception as e:
             logger.error(f"Response synthesis failed: {e}")
             raise
-    
+
     def cosine_similarity(self, a: List[float], b: List[float]) -> float:
         """Calculate cosine similarity between two vectors"""
         a_np = np.array(a)
