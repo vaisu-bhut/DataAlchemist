@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-key")
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "2000"))
     similarity_threshold: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.85"))
-    confidence_threshold: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.7"))
+    confidence_threshold: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.4"))
     max_retrieval_results: int = int(os.getenv("MAX_RETRIEVAL_RESULTS", "10"))
 
     class Config:
