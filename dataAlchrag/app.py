@@ -51,7 +51,7 @@ st.title("🤖 Customer Support RAG System")
 st.markdown("---")
 
 # Main content area with tabs
-tab1, tab2, tab3 = st.tabs(["🏠 Overview", "📈 Quick Stats", "🚀 Getting Started"])
+tab1, tab2 = st.tabs(["🏠 Overview", "🚀 Getting Started"])
 
 with tab1:
     st.header("Welcome to the Customer Support RAG System")
@@ -63,7 +63,7 @@ with tab1:
         This system leverages advanced AI to transform your customer support operations:
         
         - **🔍 Semantic Search**: Find relevant solutions instantly
-        - **🧠 Knowledge Extraction**: Automatically learn from conversations
+        - **🧠 Knowledge Extraction**: Automatically learn from Previous feeded data
         - **🔒 Privacy-First**: Automatic PII redaction
         - **📊 Analytics**: Deep insights into support patterns
         - **⚡ Real-time Responses**: Instant, personalized answers
@@ -74,61 +74,61 @@ with tab1:
         st.info("RAG System Visual Placeholder")
 
 with tab2:
-    st.header("System Status")
+#     st.header("System Status")
     
-    # Fetch summary analytics with error handling
-    try:
-        with st.spinner("Loading analytics..."):
-            response = requests.get(
-                f"{st.session_state.api_base_url}/api/v1/analytics/summary",
-                timeout=5
-            )
+#     # Fetch summary analytics with error handling
+#     try:
+#         with st.spinner("Loading analytics..."):
+#             response = requests.get(
+#                 f"{st.session_state.api_base_url}/api/v1/analytics/summary",
+#                 timeout=5
+#             )
             
-            if response.status_code == 200:
-                data = response.json()
+#             if response.status_code == 200:
+#                 data = response.json()
 
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Total Conversations", "1,234")
-                with col2:
-                    st.metric("Unique Customers", "456")
-                with col3:
-                    st.metric("Issues Resolved", "890")
-                with col4:
-                    st.metric("Avg Resolution Time", "2.5h")
+#                 col1, col2, col3, col4 = st.columns(4)
+#                 with col1:
+#                     st.metric("Total Conversations", "1,234")
+#                 with col2:
+#                     st.metric("Unique Customers", "456")
+#                 with col3:
+#                     st.metric("Issues Resolved", "890")
+#                 with col4:
+#                     st.metric("Avg Resolution Time", "2.5h")
                 
-            #     col1, col2, col3, col4 = st.columns(4)
+#             #     col1, col2, col3, col4 = st.columns(4)
                 
-            #     with col1:
-            #         st.metric("Total Conversations", data.get('total_conversations', 0))
-            #     with col2:
-            #         st.metric("Unique Customers", data.get('unique_customers', 0))
-            #     with col3:
-            #         st.metric("Issues Resolved", data.get('issues_resolved', 0))
-            #     with col4:
-            #         st.metric("Avg Resolution Time", f"{data.get('avg_resolution_time', 0):.1f}h")
-            # else:
-            #     st.warning(f"API returned status code: {response.status_code}")
-            #     st.info("Using demo data for display")
+#             #     with col1:
+#             #         st.metric("Total Conversations", data.get('total_conversations', 0))
+#             #     with col2:
+#             #         st.metric("Unique Customers", data.get('unique_customers', 0))
+#             #     with col3:
+#             #         st.metric("Issues Resolved", data.get('issues_resolved', 0))
+#             #     with col4:
+#             #         st.metric("Avg Resolution Time", f"{data.get('avg_resolution_time', 0):.1f}h")
+#             # else:
+#             #     st.warning(f"API returned status code: {response.status_code}")
+#             #     st.info("Using demo data for display")
                 
-                # Show demo data
+#                 # Show demo data
                
-    except requests.exceptions.RequestException as e:
-        st.warning("Unable to connect to API")
-        st.info("Showing demo data")
+#     except requests.exceptions.RequestException as e:
+#         st.warning("Unable to connect to API")
+#         st.info("Showing demo data")
         
-        # Show demo data
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Conversations", "1,234")
-        with col2:
-            st.metric("Unique Customers", "456")
-        with col3:
-            st.metric("Issues Resolved", "890")
-        with col4:
-            st.metric("Avg Resolution Time", "2.5h")
+#         # Show demo data
+#         col1, col2, col3, col4 = st.columns(4)
+#         with col1:
+#             st.metric("Total Conversations", "1,234")
+#         with col2:
+#             st.metric("Unique Customers", "456")
+#         with col3:
+#             st.metric("Issues Resolved", "890")
+#         with col4:
+#             st.metric("Avg Resolution Time", "2.5h")
 
-with tab3:
+# with tab3:
     st.header("Getting Started Guide")
     
     st.markdown("""
